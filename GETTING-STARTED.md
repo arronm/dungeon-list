@@ -230,6 +230,14 @@ Apply database migrations during deploy:
 npm run prisma:deploy
 ```
 
+For Render, use this Start Command so transient Neon cold starts are retried before the EBS starts:
+
+```bash
+npm run start:render
+```
+
+Do not use `npm run prisma:deploy && npm run start -w @dungeon-list/ebs` on Render; a single temporary Neon connection miss will make the deploy fail.
+
 ## 7. PubSub
 
 Leave PubSub disabled for early local testing:

@@ -1,9 +1,28 @@
 import { z } from "zod";
 
 const booleanFromEnvSchema = z
-  .enum(["true", "false", "1", "0"])
+  .string()
   .optional()
-  .transform((value) => value === "true" || value === "1");
+  .transform((value, context) => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Expected a boolean env value: true, false, 1, or 0."
+    });
+    return z.NEVER;
+  });
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -54,4 +73,3 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   return config;
 }
-

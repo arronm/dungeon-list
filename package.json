@@ -16,6 +16,7 @@
     "prisma:generate": "npm run prisma:generate -w @dungeon-list/ebs",
     "prisma:migrate": "npm run prisma:migrate -w @dungeon-list/ebs",
     "prisma:deploy": "npm run prisma:deploy -w @dungeon-list/ebs",
+    "start:render": "node scripts/render-start.mjs",
     "build:extension-zip": "npm run build -w @dungeon-list/extension && node scripts/build-extension-zip.mjs"
   },
   "devDependencies": {
