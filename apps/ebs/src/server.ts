@@ -21,7 +21,12 @@ export async function buildServer(config: AppConfig = loadConfig()) {
         return;
       }
 
-      if (config.frontendOrigin && origin === config.frontendOrigin) {
+      if (config.frontendOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      if (isLocalTestOrigin(origin)) {
         callback(null, true);
         return;
       }
@@ -58,6 +63,18 @@ export async function buildServer(config: AppConfig = loadConfig()) {
   });
 
   return app;
+}
+
+function isLocalTestOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1")
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function start(): Promise<void> {

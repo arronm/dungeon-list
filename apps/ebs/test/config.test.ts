@@ -32,5 +32,14 @@ describe("EBS config", () => {
       })
     ).toThrow("Expected a boolean env value");
   });
-});
 
+  it("supports multiple frontend origins", () => {
+    expect(
+      loadConfig({
+        ...baseEnv,
+        FRONTEND_ORIGIN: "http://localhost:5173",
+        FRONTEND_ORIGINS: "http://127.0.0.1:5173, https://example.ext-twitch.tv"
+      }).frontendOrigins
+    ).toEqual(["http://localhost:5173", "http://127.0.0.1:5173", "https://example.ext-twitch.tv"]);
+  });
+});

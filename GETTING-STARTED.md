@@ -10,7 +10,7 @@ Use one of these workflows:
 | --- | --- | --- | --- |
 | UI/design smoke test | No | No | `npm run dev:extension` |
 | Local API/backend development | Yes | No | `npm run dev:ebs` plus API tests |
-| Full Twitch Local Test | Yes | Yes | `npm run dev:ebs` and `npm run dev:extension` |
+| Full Twitch Local Test | Hosted or local EBS | Yes | `npm run localtest:extension` |
 | Hosted Test / release | Hosted EBS | Yes | `npm run build:extension-zip` |
 
 The fastest local workflow is the frontend-only mock. The best realistic workflow is Twitch Local Test with a real EBS, Postgres, and HTTPS tunnel URLs.
@@ -113,19 +113,101 @@ Expected response:
 
 Use this when you want real Twitch identity, moderator/broadcaster roles, Extension JWTs, and Twitch iframe behavior.
 
-Recommended setup:
+Prefer serving the built static extension for Twitch Local Test. Vite dev mode is useful for standalone UI work, but its HMR/module tooling can be noisier inside Twitch's extension iframe.
 
-1. Run Postgres and the EBS locally on `localhost:8080`.
-2. Expose the EBS with an HTTPS tunnel.
-3. Set `VITE_EBS_BASE_URL` to the EBS tunnel URL.
-4. Restart `npm run dev:extension`.
+With Render as the EBS, set this in `.env`:
+
+```bash
+VITE_EBS_BASE_URL=https://dungeon-list.onrender.com
+```
+
+Then run:
+
+```bash
+npm run localtest:extension
+```
+
+This builds the extension and serves `apps/extension/dist` on:
+
+```text
+http://127.0.0.1:5173/
+```
+
+In Twitch **Asset Hosting**, use:
+
+```text
+Testing Base URI: http://127.0.0.1:5173/
+Video - Component Viewer Path: index.html
+Config Path: index.html
+```
+
+Open this directly in your browser as a quick static-serving check:
+
+```text
+http://127.0.0.1:5173/index.html
+```
+
+Outside Twitch, the production preview should show the fallback message telling you to open it from Twitch. Inside Twitch Local Test, Twitch injects authorization and the queue UI should load.
+
+### Optional Tunnel
+
+A tunnel gives Twitch a public HTTPS URL that forwards to your local static server. Twitch's tutorial supports HTTP local testing, but if your browser blocks localhost iframe content, a tunnel removes that variable.
+
+You only need a frontend tunnel for **Local Test**. If you upload `extension-build.zip` and move to **Hosted Test**, Twitch hosts the frontend files and no frontend tunnel is needed.
+
+### Option A: Cloudflare Quick Tunnel
+
+Cloudflare Quick Tunnels are a no-account way to expose localhost temporarily. Install `cloudflared`, then run:
+
+```bash
+cloudflared tunnel --url http://localhost:5173
+```
+
+If Vite picked another port, use that port instead:
+
+```bash
+cloudflared tunnel --url http://localhost:5174
+```
+
+Copy the generated `https://*.trycloudflare.com` URL. Use that as the Twitch Local Test Base URI:
+
+```text
+https://<generated-name>.trycloudflare.com/
+```
+
+### Option B: ngrok
+
+ngrok does the same job: it creates a public HTTPS URL that forwards to localhost. After installing and signing in to ngrok:
+
+```bash
+ngrok http 5173
+```
+
+If Vite picked another port:
+
+```bash
+ngrok http 5174
+```
+
+Copy the generated `https://*.ngrok-free.app` or `https://*.ngrok.app` URL. Use that as the Twitch Local Test Base URI:
+
+```text
+https://<generated-name>.ngrok-free.app/
+```
+
+Recommended setup if you use a tunnel:
+
+1. Keep the Render EBS running, or run the EBS locally if you are specifically testing backend changes.
+2. Expose the frontend static server with an HTTPS tunnel.
+3. Set `VITE_EBS_BASE_URL` to your Render EBS URL, or to an EBS tunnel if running the backend locally.
+4. Restart `npm run localtest:extension`.
 5. Configure Twitch Local Test to load the frontend.
 
 Example tunnel layout:
 
 ```text
 Frontend: https://<frontend-tunnel>/, or http://localhost:5173/ with Chrome's insecure-localhost flag
-EBS:      https://<ebs-tunnel>/
+EBS:      https://dungeon-list.onrender.com/ for Render, or https://<ebs-tunnel>/ for local EBS
 ```
 
 For Twitch Local Test, HTTPS is the least painful option. Twitch’s docs note that Local Test uses a Base URI for the frontend and that HTTPS is expected because Twitch itself is served over HTTPS. Chrome can sometimes be configured to allow insecure localhost, but tunnels avoid most browser and CSP friction.
@@ -135,20 +217,19 @@ For Twitch Local Test, HTTPS is the least painful option. Twitch’s docs note t
 ```bash
 TWITCH_EXTENSION_CLIENT_ID=<extension client ID>
 TWITCH_EXTENSION_SECRET=<base64 extension secret>
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dungeon_list
-PORT=8080
-FRONTEND_ORIGIN=https://<frontend-tunnel>
+FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://<frontend-tunnel>
 TWITCH_PUBSUB_ENABLED=false
-VITE_EBS_BASE_URL=https://<ebs-tunnel>
+VITE_EBS_BASE_URL=https://dungeon-list.onrender.com
 ```
 
-Restart both dev servers after editing `.env`; Vite reads `VITE_*` variables at startup.
+If you are running the EBS locally instead of Render, also set `DATABASE_URL`, `PORT`, and use `VITE_EBS_BASE_URL=https://<ebs-tunnel>`.
 
-Start both:
+Restart the local test server after editing `.env`; Vite reads `VITE_*` variables at build time.
+
+Start the frontend:
 
 ```bash
-npm run dev:ebs
-npm run dev:extension
+npm run localtest:extension
 ```
 
 In the Twitch Developer Console, use the frontend tunnel or localhost URL as the Local Test Base URI. The Base URI must end with `/`.
@@ -163,11 +244,13 @@ Viewer path:
 index.html
 ```
 
-Add the EBS tunnel host to the extension’s URL-fetching allowlist so the extension iframe can call:
+Add the EBS host to the extension’s URL-fetching allowlist so the extension iframe can call:
 
 ```text
-https://<ebs-tunnel>
+https://dungeon-list.onrender.com
 ```
+
+If the browser reports a CORS error from the Render EBS during Local Test, make sure Render has `FRONTEND_ORIGINS` set to include the exact iframe origin shown in DevTools. `http://localhost:5173` and `http://127.0.0.1:5173` are different origins.
 
 Then move the extension version to Local Test, install it on your channel, activate it in a Component slot, and open your channel page.
 

@@ -36,7 +36,8 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://api.twitch.tv/helix/extensions/pubsub"),
-  FRONTEND_ORIGIN: z.string().optional()
+  FRONTEND_ORIGIN: z.string().optional(),
+  FRONTEND_ORIGINS: z.string().optional()
 });
 
 export interface AppConfig {
@@ -49,10 +50,12 @@ export interface AppConfig {
   twitchPubSubEnabled: boolean;
   twitchPubSubEndpoint: string;
   frontendOrigin?: string;
+  frontendOrigins: string[];
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
+  const frontendOrigins = parseFrontendOrigins(parsed.FRONTEND_ORIGINS, parsed.FRONTEND_ORIGIN);
   const config: AppConfig = {
     nodeEnv: parsed.NODE_ENV ?? "development",
     port: parsed.PORT,
@@ -60,7 +63,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     twitchExtensionClientId: parsed.TWITCH_EXTENSION_CLIENT_ID,
     twitchExtensionSecret: parsed.TWITCH_EXTENSION_SECRET,
     twitchPubSubEnabled: parsed.TWITCH_PUBSUB_ENABLED,
-    twitchPubSubEndpoint: parsed.TWITCH_PUBSUB_ENDPOINT
+    twitchPubSubEndpoint: parsed.TWITCH_PUBSUB_ENDPOINT,
+    frontendOrigins
   };
 
   if (parsed.TWITCH_EXTENSION_OWNER_ID) {
@@ -72,4 +76,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   return config;
+}
+
+function parseFrontendOrigins(frontendOrigins?: string, frontendOrigin?: string): string[] {
+  const values = [frontendOrigin, ...(frontendOrigins?.split(",") ?? [])];
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
 }

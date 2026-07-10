@@ -12,6 +12,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev:extension": "npm run build -w @dungeon-list/shared && npm run dev -w @dungeon-list/extension",
+    "localtest:extension": "npm run build -w @dungeon-list/shared && npm run build -w @dungeon-list/extension && npm run preview -w @dungeon-list/extension -- --port 5173 --strictPort",
     "dev:ebs": "npm run build -w @dungeon-list/shared && npm run dev -w @dungeon-list/ebs",
     "prisma:generate": "npm run prisma:generate -w @dungeon-list/ebs",
     "prisma:migrate": "npm run prisma:migrate -w @dungeon-list/ebs",
