@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum QueueEntryRole {
+  tank
+  healer
+  dps
+}
+
+enum QueueEntryStatus {
+  waiting
+  invited
+  completed
+  skipped
+}
+
+model Channel {
+  id          String       @id @map("twitch_channel_id")
+  signupsOpen Boolean     @default(true) @map("signups_open")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  entries     QueueEntry[]
+  events      QueueEvent[]
+
+  @@map("channels")
+}
+
+model QueueEntry {
+  id           String           @id @default(cuid())
+  channelId    String           @map("channel_id")
+  twitchUserId String           @map("twitch_user_id")
+  displayName  String?          @map("display_name")
+  role         QueueEntryRole
+  note         String           @default("")
+  status       QueueEntryStatus @default(waiting)
+  position     Int
+  joinedAt     DateTime         @default(now()) @map("joined_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  channel      Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, twitchUserId])
+  @@index([channelId, status, position])
+  @@map("queue_entries")
+}
+
+model QueueEvent {
+  id                String   @id @default(cuid())
+  channelId         String   @map("channel_id")
+  entryId           String?  @map("entry_id")
+  actorTwitchUserId String?  @map("actor_twitch_user_id")
+  actorRole         String   @map("actor_role")
+  action            String
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  channel           Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@map("queue_events")
+}
+

@@ -1,0 +1,26 @@
+{
+  "name": "dungeon-list",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:extension": "npm run build -w @dungeon-list/shared && npm run dev -w @dungeon-list/extension",
+    "dev:ebs": "npm run build -w @dungeon-list/shared && npm run dev -w @dungeon-list/ebs",
+    "prisma:generate": "npm run prisma:generate -w @dungeon-list/ebs",
+    "prisma:migrate": "npm run prisma:migrate -w @dungeon-list/ebs",
+    "prisma:deploy": "npm run prisma:deploy -w @dungeon-list/ebs",
+    "build:extension-zip": "npm run build -w @dungeon-list/extension && node scripts/build-extension-zip.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
+  }
+}
