@@ -300,58 +300,60 @@ export function App() {
       ) : null}
 
       <section className="signup">
-        <div className="role-group" aria-label="Dungeon role">
-          {(["tank", "healer", "dps"] as QueueRole[]).map((nextRole) => (
-            <button
-              key={nextRole}
-              type="button"
-              className={role === nextRole ? "selected" : undefined}
-              onClick={() => setRole(nextRole)}
-            >
-              {roleLabels[nextRole]}
-            </button>
-          ))}
-        </div>
-        <div className="character-fields">
-          <label>
-            <span>Server</span>
-            <select
-              value={realm}
-              required
-              onChange={(event) => setRealm(event.target.value as NorthAmericanRealm | "")}
-            >
-              <option value="">Select server</option>
-              {northAmericanRealms.map((nextRealm) => (
-                <option key={nextRealm} value={nextRealm}>
-                  {nextRealm}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Character</span>
-            <input
-              type="text"
-              value={characterName}
-              minLength={2}
-              maxLength={12}
-              placeholder="Character name"
-              autoComplete="off"
-              required
-              onChange={(event) => setCharacterName(event.target.value)}
-            />
-          </label>
-        </div>
         {currentEntry ? (
           <button className="danger" type="button" disabled={busyAction === "leave"} onClick={submitLeave}>
             <LogOut size={16} />
             Leave queue
           </button>
         ) : (
-          <button type="button" disabled={!canJoin || busyAction === "join"} onClick={submitJoin}>
-            <LogIn size={16} />
-            Join queue
-          </button>
+          <>
+            <div className="role-group" aria-label="Dungeon role">
+              {(["tank", "healer", "dps"] as QueueRole[]).map((nextRole) => (
+                <button
+                  key={nextRole}
+                  type="button"
+                  className={role === nextRole ? "selected" : undefined}
+                  onClick={() => setRole(nextRole)}
+                >
+                  {roleLabels[nextRole]}
+                </button>
+              ))}
+            </div>
+            <div className="character-fields">
+              <label>
+                <span>Server</span>
+                <select
+                  value={realm}
+                  required
+                  onChange={(event) => setRealm(event.target.value as NorthAmericanRealm | "")}
+                >
+                  <option value="">Select server</option>
+                  {northAmericanRealms.map((nextRealm) => (
+                    <option key={nextRealm} value={nextRealm}>
+                      {nextRealm}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Character</span>
+                <input
+                  type="text"
+                  value={characterName}
+                  minLength={2}
+                  maxLength={12}
+                  placeholder="Character name"
+                  autoComplete="off"
+                  required
+                  onChange={(event) => setCharacterName(event.target.value)}
+                />
+              </label>
+            </div>
+            <button type="button" disabled={!canJoin || busyAction === "join"} onClick={submitJoin}>
+              <LogIn size={16} />
+              Join queue
+            </button>
+          </>
         )}
       </section>
 
