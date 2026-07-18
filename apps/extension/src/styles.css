@@ -333,6 +333,46 @@ h2 {
   white-space: nowrap;
 }
 
+.character-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.character-line p {
+  min-width: 0;
+  flex: 1;
+}
+
+.raider-io {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  color: #8fc7ff;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.raider-io:hover,
+.raider-io:focus-visible {
+  text-decoration: underline;
+}
+
+.raider-io.unavailable {
+  color: rgba(246, 242, 234, 0.58);
+}
+
+:root[data-theme="light"] .raider-io {
+  color: #145b91;
+}
+
+:root[data-theme="light"] .raider-io.unavailable {
+  color: rgba(35, 31, 32, 0.52);
+}
+
 .badge,
 .status {
   flex: 0 0 auto;
@@ -372,10 +412,15 @@ h2 {
 
 .moderation {
   display: grid;
-  grid-template-columns: repeat(6, 34px);
+  grid-template-columns: repeat(7, 34px);
   gap: 5px;
   margin-top: 8px;
   overflow-x: auto;
+}
+
+.moderation button.copied {
+  background: #19a974;
+  color: #07110d;
 }
 
 .completed {

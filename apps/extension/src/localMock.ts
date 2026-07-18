@@ -23,10 +23,10 @@ let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
 let signupsOpen = true;
 let entries: QueueEntryDto[] = [
-  createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Bulwark", "Area 52", "waiting", 1),
-  createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2),
-  createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Critstorm", "Illidan", "waiting", 3),
-  createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4)
+  createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Bulwark", "Area 52", "waiting", 1, 2847),
+  createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2, 2312),
+  createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Critstorm", "Illidan", "waiting", 3, 0),
+  createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4, 1975)
 ];
 
 export interface LocalMockAuthorization {
@@ -284,11 +284,12 @@ function createEntry(
   characterName: string,
   realm: string,
   status: QueueEntryDto["status"],
-  position: number
+  position: number,
+  raiderIoScore?: number
 ): QueueEntryDto {
   const timestamp = now();
 
-  return {
+  const entry: QueueEntryDto = {
     id,
     twitchUserId,
     displayName,
@@ -301,6 +302,16 @@ function createEntry(
     updatedAt: timestamp,
     isCurrentViewer: false
   };
+
+  if (raiderIoScore !== undefined) {
+    entry.raiderIo = {
+      score: raiderIoScore,
+      profileUrl: `https://raider.io/characters/us/${encodeURIComponent(realm.toLowerCase().replaceAll(" ", "-"))}/${encodeURIComponent(characterName)}`,
+      lastCrawledAt: timestamp
+    };
+  }
+
+  return entry;
 }
 
 function getMockRole(): ExtensionRole {

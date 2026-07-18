@@ -56,6 +56,12 @@ export interface QueueViewer {
   canModerate: boolean;
 }
 
+export interface RaiderIoSummary {
+  score: number;
+  profileUrl: string;
+  lastCrawledAt: string | null;
+}
+
 export interface QueueEntryDto {
   id: string;
   twitchUserId: string;
@@ -68,6 +74,7 @@ export interface QueueEntryDto {
   joinedAt: string;
   updatedAt: string;
   isCurrentViewer: boolean;
+  raiderIo?: RaiderIoSummary | null;
 }
 
 export interface QueueStateDto {

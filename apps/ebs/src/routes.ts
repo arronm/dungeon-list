@@ -9,6 +9,7 @@ import {
 import { getPrincipal, requireLinkedViewer, requireQueueManager } from "./auth.js";
 import { ApiError } from "./errors.js";
 import type { TwitchPubSubPublisher } from "./pubsub.js";
+import type { RaiderIoClient } from "./raiderIo.js";
 import type { QueueRepository } from "./repository.js";
 import type { TwitchUserClient } from "./twitchUser.js";
 
@@ -16,10 +17,53 @@ export interface RouteDependencies {
   repository: QueueRepository;
   pubsub: TwitchPubSubPublisher;
   twitchUsers: TwitchUserClient;
+  raiderIo: RaiderIoClient;
 }
 
 export function registerRoutes(app: FastifyInstance, dependencies: RouteDependencies): void {
-  const { repository, pubsub, twitchUsers } = dependencies;
+  const { repository, pubsub, twitchUsers, raiderIo } = dependencies;
+
+  async function enrichQueueWithRaiderIo(
+    queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>
+  ): Promise<Awaited<ReturnType<QueueRepository["getQueueState"]>>> {
+    if (!queue.viewer.canModerate || !queue.entries.length) {
+      return queue;
+    }
+
+    const entries = [...queue.entries];
+    const activeEntryIndexes = entries.flatMap((entry, index) => (entry.status === "completed" ? [] : [index]));
+    const completedEntryIndexes = entries
+      .flatMap((entry, index) => (entry.status === "completed" ? [index] : []))
+      .slice(0, 4);
+    const entryIndexes = [...activeEntryIndexes, ...completedEntryIndexes];
+    let nextEntryIndex = 0;
+
+    async function enrichNextEntry(): Promise<void> {
+      while (nextEntryIndex < entryIndexes.length) {
+        const entryIndex = entryIndexes[nextEntryIndex]!;
+        nextEntryIndex += 1;
+        const entry = entries[entryIndex]!;
+
+        if (!entry.characterName || !entry.realm) {
+          continue;
+        }
+
+        try {
+          const profile = await raiderIo.getCharacterProfile(entry.characterName, entry.realm);
+          entries[entryIndex] = { ...entry, raiderIo: profile };
+        } catch (error) {
+          app.log.warn(
+            { error, characterName: entry.characterName, realm: entry.realm },
+            "failed to enrich queue entry with Raider.IO"
+          );
+        }
+      }
+    }
+
+    const workerCount = Math.min(4, entryIndexes.length);
+    await Promise.all(Array.from({ length: workerCount }, () => enrichNextEntry()));
+    return { ...queue, entries };
+  }
 
   async function publishMutation(queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>, app: FastifyInstance) {
     try {
@@ -31,7 +75,7 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
       app.log.error({ error }, "failed to publish queue update");
     }
 
-    return { queue };
+    return { queue: await enrichQueueWithRaiderIo(queue) };
   }
 
   app.get("/health", async () => ({ ok: true }));
@@ -47,7 +91,8 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
         request.log.warn({ error, userId: principal.userId }, "failed to synchronize Twitch display name");
       }
     }
-    return { queue: await repository.getQueueState(principal) };
+    const queue = await repository.getQueueState(principal);
+    return { queue: await enrichQueueWithRaiderIo(queue) };
   });
 
   app.post("/api/queue/join", async (request) => {

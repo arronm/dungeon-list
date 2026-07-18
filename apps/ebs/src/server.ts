@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { loadConfig, type AppConfig } from "./config.js";
 import { registerAuth } from "./auth.js";
 import { TwitchPubSubPublisher } from "./pubsub.js";
+import { RaiderIoClient } from "./raiderIo.js";
 import { QueueRepository } from "./repository.js";
 import { registerErrorHandler, registerRoutes } from "./routes.js";
 import { TwitchUserClient } from "./twitchUser.js";
@@ -61,7 +62,8 @@ export async function buildServer(config: AppConfig = loadConfig()) {
   registerRoutes(app, {
     repository: new QueueRepository(),
     pubsub: new TwitchPubSubPublisher(pubsubConfig),
-    twitchUsers: new TwitchUserClient(config.twitchExtensionClientId)
+    twitchUsers: new TwitchUserClient(config.twitchExtensionClientId),
+    raiderIo: new RaiderIoClient()
   });
 
   return app;

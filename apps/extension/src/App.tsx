@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   CheckCircle2,
+  Copy,
+  ExternalLink,
   Loader2,
   Lock,
   LogIn,
@@ -34,6 +37,7 @@ import {
   updateEntryStatus,
   updateQueueSettings
 } from "./api.js";
+import { formatInviteCommand } from "./invite.js";
 import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
 
 const roleLabels: Record<QueueRole, string> = {
@@ -68,7 +72,9 @@ export function App() {
   const [characterName, setCharacterName] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
+  const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
   const queueRequestGeneration = useRef(0);
+  const copyResetTimer = useRef<number | undefined>();
 
   const sortedEntries = useMemo(() => {
     return [...(queue?.entries ?? [])].sort((a, b) => {
@@ -152,6 +158,14 @@ export function App() {
     document.documentElement.dataset.theme = twitch.context.theme ?? "dark";
   }, [twitch.context.theme]);
 
+  useEffect(() => {
+    return () => {
+      if (copyResetTimer.current !== undefined) {
+        window.clearTimeout(copyResetTimer.current);
+      }
+    };
+  }, []);
+
   async function runAction(action: string, callback: () => Promise<void>) {
     setBusyAction(action);
     setError(undefined);
@@ -197,6 +211,24 @@ export function App() {
       const response = await callback();
       applyActionQueue(response.queue);
     });
+  }
+
+  function copyInvite(entry: QueueEntryDto) {
+    if (!entry.characterName || !entry.realm) {
+      return;
+    }
+
+    const command = formatInviteCommand(entry.characterName, entry.realm);
+    setError(undefined);
+    void copyToClipboard(command)
+      .then(() => {
+        setCopiedEntryId(entry.id);
+        if (copyResetTimer.current !== undefined) {
+          window.clearTimeout(copyResetTimer.current);
+        }
+        copyResetTimer.current = window.setTimeout(() => setCopiedEntryId(undefined), 2_000);
+      })
+      .catch(() => setError("The invite command could not be copied."));
   }
 
   if (!twitch.isAvailable) {
@@ -334,6 +366,8 @@ export function App() {
         entries={activeEntries}
         canModerate={Boolean(queue?.viewer.canModerate)}
         busyAction={busyAction}
+        copiedEntryId={copiedEntryId}
+        onCopy={copyInvite}
         onStatus={(entryId, status) =>
           submitModeration(`status:${entryId}:${status}`, () => updateEntryStatus(token, entryId, { status }))
         }
@@ -347,7 +381,7 @@ export function App() {
         <section className="completed">
           <h2>Completed</h2>
           {completedEntries.map((entry) => (
-            <EntrySummary key={entry.id} entry={entry} />
+            <EntrySummary key={entry.id} entry={entry} showRaiderIo={Boolean(queue?.viewer.canModerate)} />
           ))}
         </section>
       ) : null}
@@ -371,12 +405,23 @@ interface QueueListProps {
   entries: QueueEntryDto[];
   canModerate: boolean;
   busyAction: string | undefined;
+  copiedEntryId: string | undefined;
+  onCopy(entry: QueueEntryDto): void;
   onStatus(entryId: string, status: QueueEntryStatus): void;
   onMove(entryId: string, direction: "up" | "down"): void;
   onRemove(entryId: string): void;
 }
 
-function QueueList({ entries, canModerate, busyAction, onStatus, onMove, onRemove }: QueueListProps) {
+function QueueList({
+  entries,
+  canModerate,
+  busyAction,
+  copiedEntryId,
+  onCopy,
+  onStatus,
+  onMove,
+  onRemove
+}: QueueListProps) {
   if (!entries.length) {
     return <p className="empty">No one is waiting yet.</p>;
   }
@@ -385,9 +430,22 @@ function QueueList({ entries, canModerate, busyAction, onStatus, onMove, onRemov
     <section className="queue-list" aria-label="Dungeon waitlist">
       {entries.map((entry, index) => (
         <article key={entry.id} className={entry.isCurrentViewer ? "entry mine" : "entry"}>
-          <EntrySummary entry={entry} />
+          <EntrySummary entry={entry} showRaiderIo={canModerate} />
           {canModerate ? (
             <div className="moderation">
+              <button
+                type="button"
+                className={copiedEntryId === entry.id ? "copied" : undefined}
+                title={
+                  entry.characterName && entry.realm
+                    ? `Copy ${formatInviteCommand(entry.characterName, entry.realm)}`
+                    : "Character details unavailable"
+                }
+                disabled={!entry.characterName || !entry.realm}
+                onClick={() => onCopy(entry)}
+              >
+                {copiedEntryId === entry.id ? <Check size={15} /> : <Copy size={15} />}
+              </button>
               <button
                 type="button"
                 title="Move up"
@@ -424,7 +482,7 @@ function QueueList({ entries, canModerate, busyAction, onStatus, onMove, onRemov
   );
 }
 
-function EntrySummary({ entry }: { entry: QueueEntryDto }) {
+function EntrySummary({ entry, showRaiderIo }: { entry: QueueEntryDto; showRaiderIo: boolean }) {
   const label = entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
 
   return (
@@ -437,13 +495,44 @@ function EntrySummary({ entry }: { entry: QueueEntryDto }) {
           <span className={`status ${entry.status}`}>{statusLabels[entry.status]}</span>
         </div>
         {entry.characterName || entry.realm ? (
-          <p title={`${entry.characterName}${entry.realm ? ` - ${entry.realm}` : ""}`}>
-            {entry.characterName || "Unknown character"}
-            {entry.realm ? ` - ${entry.realm}` : null}
-          </p>
+          <div className="character-line">
+            <p title={`${entry.characterName}${entry.realm ? ` - ${entry.realm}` : ""}`}>
+              {entry.characterName || "Unknown character"}
+              {entry.realm ? ` - ${entry.realm}` : null}
+            </p>
+            {showRaiderIo && entry.raiderIo !== undefined ? (
+              <RaiderIoScore entry={entry} />
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function RaiderIoScore({ entry }: { entry: QueueEntryDto }) {
+  if (!entry.raiderIo) {
+    return (
+      <span className="raider-io unavailable" title="Raider.IO profile not found">
+        RIO -
+      </span>
+    );
+  }
+
+  const score = Math.round(entry.raiderIo.score);
+  const label = score > 0 ? `RIO ${score.toLocaleString("en-US")}` : "RIO Unranked";
+
+  return (
+    <a
+      className="raider-io"
+      href={entry.raiderIo.profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open ${entry.characterName} on Raider.IO (external site)`}
+    >
+      {label}
+      <ExternalLink size={11} aria-hidden="true" />
+    </a>
   );
 }
 
@@ -464,5 +553,30 @@ function parsePubSubPayload(message: string): unknown {
     return JSON.parse(message);
   } catch {
     return undefined;
+  }
+}
+
+async function copyToClipboard(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Some extension iframe policies reject Clipboard API writes; use the user-activated fallback below.
+    }
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+
+  if (!copied) {
+    throw new Error("Clipboard write failed.");
   }
 }
