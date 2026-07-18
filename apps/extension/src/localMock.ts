@@ -23,10 +23,10 @@ let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
 let signupsOpen = true;
 let entries: QueueEntryDto[] = [
-  createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Ready for anything.", "waiting", 1),
-  createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Can swap specs if needed.", "invited", 2),
-  createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Looking for a quick weekly.", "waiting", 3),
-  createEntry("mock-4", "mock-done", "Keyholder", "dps", "Completed earlier.", "completed", 4)
+  createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Bulwark", "Area 52", "waiting", 1),
+  createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2),
+  createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Critstorm", "Illidan", "waiting", 3),
+  createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4)
 ];
 
 export interface LocalMockAuthorization {
@@ -153,7 +153,8 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
   const existing = entries.find((entry) => entry.twitchUserId === viewer.userId);
   if (existing) {
     existing.role = input.role;
-    existing.note = input.note;
+    existing.realm = input.realm;
+    existing.characterName = input.characterName;
     existing.displayName = mockDisplayName;
     existing.status = "waiting";
     existing.updatedAt = now();
@@ -164,7 +165,8 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
         viewer.userId,
         mockDisplayName,
         input.role,
-        input.note,
+        input.characterName,
+        input.realm,
         "waiting",
         nextActivePosition()
       )
@@ -279,7 +281,8 @@ function createEntry(
   twitchUserId: string,
   displayName: string,
   role: QueueEntryDto["role"],
-  note: string,
+  characterName: string,
+  realm: string,
   status: QueueEntryDto["status"],
   position: number
 ): QueueEntryDto {
@@ -290,7 +293,8 @@ function createEntry(
     twitchUserId,
     displayName,
     role,
-    note,
+    characterName,
+    realm,
     status,
     position,
     joinedAt: timestamp,

@@ -17,8 +17,10 @@ import {
   type QueueEntryDto,
   type QueueEntryStatus,
   type JoinQueueRequest,
+  type NorthAmericanRealm,
   type QueueRole,
   type QueueStateDto,
+  northAmericanRealms,
   queueEventSchema
 } from "@dungeon-list/shared";
 import {
@@ -62,7 +64,8 @@ export function App() {
   const helixToken = twitch.authorization?.helixToken;
   const [queue, setQueue] = useState<QueueStateDto | undefined>();
   const [role, setRole] = useState<QueueRole>("dps");
-  const [note, setNote] = useState("");
+  const [realm, setRealm] = useState<NorthAmericanRealm | "">("");
+  const [characterName, setCharacterName] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const queueRequestGeneration = useRef(0);
@@ -77,7 +80,8 @@ export function App() {
   const activeEntries = sortedEntries.filter((entry) => entry.status !== "completed");
   const completedEntries = sortedEntries.filter((entry) => entry.status === "completed").slice(0, 4);
   const currentEntry = queue?.entries.find((entry) => entry.isCurrentViewer);
-  const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry);
+  const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
+  const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry && hasCharacterDetails);
 
   const applyActionQueue = useCallback((nextQueue: QueueStateDto) => {
     queueRequestGeneration.current += 1;
@@ -161,14 +165,16 @@ export function App() {
   }
 
   function submitJoin() {
-    if (!token || !helixToken) {
+    const normalizedCharacterName = characterName.trim();
+    if (!token || !helixToken || !realm || normalizedCharacterName.length < 2) {
       return;
     }
 
     void runAction("join", async () => {
       const body: JoinQueueRequest = {
         role,
-        note
+        realm,
+        characterName: normalizedCharacterName
       };
       const response = await joinQueue(token, helixToken, body);
       applyActionQueue(response.queue);
@@ -274,13 +280,36 @@ export function App() {
             </button>
           ))}
         </div>
-        <textarea
-          value={note}
-          maxLength={160}
-          rows={2}
-          placeholder="Optional note"
-          onChange={(event) => setNote(event.target.value)}
-        />
+        <div className="character-fields">
+          <label>
+            <span>Server</span>
+            <select
+              value={realm}
+              required
+              onChange={(event) => setRealm(event.target.value as NorthAmericanRealm | "")}
+            >
+              <option value="">Select server</option>
+              {northAmericanRealms.map((nextRealm) => (
+                <option key={nextRealm} value={nextRealm}>
+                  {nextRealm}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Character</span>
+            <input
+              type="text"
+              value={characterName}
+              minLength={2}
+              maxLength={12}
+              placeholder="Character name"
+              autoComplete="off"
+              required
+              onChange={(event) => setCharacterName(event.target.value)}
+            />
+          </label>
+        </div>
         {currentEntry ? (
           <button className="danger" type="button" disabled={busyAction === "leave"} onClick={submitLeave}>
             <LogOut size={16} />
@@ -403,11 +432,16 @@ function EntrySummary({ entry }: { entry: QueueEntryDto }) {
       <span className="position">{entry.position}</span>
       <div className="entry-copy">
         <div className="entry-line">
-          <strong>{label}</strong>
+          <strong title={label}>{label}</strong>
           <span className={`badge ${entry.role}`}>{roleLabels[entry.role]}</span>
           <span className={`status ${entry.status}`}>{statusLabels[entry.status]}</span>
         </div>
-        {entry.note ? <p>{entry.note}</p> : null}
+        {entry.characterName || entry.realm ? (
+          <p title={`${entry.characterName}${entry.realm ? ` - ${entry.realm}` : ""}`}>
+            {entry.characterName || "Unknown character"}
+            {entry.realm ? ` - ${entry.realm}` : null}
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -32,7 +32,8 @@ body {
 }
 
 button,
-textarea {
+input,
+select {
   font: inherit;
 }
 
@@ -55,10 +56,11 @@ button:disabled {
   opacity: 0.55;
 }
 
-textarea {
+input,
+select {
   width: 100%;
-  min-height: 56px;
-  resize: vertical;
+  min-width: 0;
+  min-height: 38px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
   padding: 8px;
@@ -66,9 +68,20 @@ textarea {
   color: inherit;
 }
 
-:root[data-theme="light"] textarea {
+:root[data-theme="light"] input,
+:root[data-theme="light"] select {
   border-color: rgba(35, 31, 32, 0.18);
   background: rgba(255, 255, 255, 0.88);
+}
+
+select option {
+  background: #16191d;
+  color: #f6f2ea;
+}
+
+:root[data-theme="light"] select option {
+  background: #fff;
+  color: #231f20;
 }
 
 .shell {
@@ -199,6 +212,28 @@ h2 {
   margin-bottom: 8px;
 }
 
+.character-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.character-fields label {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.character-fields label span {
+  color: rgba(246, 242, 234, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+:root[data-theme="light"] .character-fields label span {
+  color: rgba(35, 31, 32, 0.68);
+}
+
 .role-group {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -269,20 +304,31 @@ h2 {
 }
 
 .entry-copy {
+  overflow: hidden;
   min-width: 0;
   flex: 1;
 }
 
 .entry-line {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
   gap: 6px;
+  overflow: hidden;
 }
 
 .entry-line strong {
   overflow: hidden;
+  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-copy p {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -349,6 +395,12 @@ h2 {
 .clear-button {
   width: 100%;
   margin-top: 10px;
+}
+
+@media (max-width: 380px) {
+  .character-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .spin {

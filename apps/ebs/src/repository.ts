@@ -9,6 +9,7 @@ import {
   type SetQueueSettingsRequest
 } from "@dungeon-list/shared";
 import { requireLinkedViewer, type ExtensionPrincipal } from "./auth.js";
+import { parseCharacterDetails, serializeCharacterDetails } from "./characterDetails.js";
 import { ApiError } from "./errors.js";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -52,13 +53,14 @@ export class QueueRepository {
       const nextPosition = await this.nextActivePosition(tx, principal.channelId);
       const position = existing && existing.status !== "completed" ? existing.position : nextPosition;
       const displayName = verifiedDisplayName || existing?.displayName || null;
+      const characterDetails = serializeCharacterDetails(input);
 
       const entry = existing
         ? await tx.queueEntry.update({
             where: { id: existing.id },
             data: {
               role: input.role,
-              note: input.note,
+              note: characterDetails,
               displayName,
               status: "waiting",
               position,
@@ -71,7 +73,7 @@ export class QueueRepository {
               twitchUserId,
               displayName,
               role: input.role,
-              note: input.note,
+              note: characterDetails,
               status: "waiting",
               position
             }
@@ -79,6 +81,8 @@ export class QueueRepository {
 
       await this.writeEvent(tx, principal, "entry.joined", entry.id, {
         role: input.role,
+        realm: input.realm,
+        characterName: input.characterName,
         hadExistingEntry: Boolean(existing)
       });
       const revision = await this.touchChannel(tx, principal.channelId);
@@ -336,12 +340,14 @@ export class QueueRepository {
       revision,
       viewer,
       entries: entries.map((entry): QueueEntryDto => {
+        const characterDetails = parseCharacterDetails(entry.note);
         return {
           id: entry.id,
           twitchUserId: entry.twitchUserId,
           displayName: entry.displayName,
           role: entry.role,
-          note: entry.note,
+          realm: characterDetails.realm,
+          characterName: characterDetails.characterName,
           status: entry.status,
           position: entry.position,
           joinedAt: entry.joinedAt.toISOString(),

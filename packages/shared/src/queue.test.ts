@@ -7,16 +7,20 @@ import {
 } from "./queue.js";
 
 describe("queue schemas", () => {
-  it("normalizes optional join notes", () => {
-    expect(joinQueueRequestSchema.parse({ role: "tank" })).toMatchObject({
+  it("accepts a current North American realm and trims the character name", () => {
+    expect(joinQueueRequestSchema.parse({ role: "tank", realm: "Area 52", characterName: "  Bulwark  " })).toEqual({
       role: "tank",
-      note: ""
+      realm: "Area 52",
+      characterName: "Bulwark"
     });
   });
 
-  it("rejects unsupported roles and oversized notes", () => {
-    expect(() => joinQueueRequestSchema.parse({ role: "bard" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ role: "dps", note: "x".repeat(161) })).toThrow();
+  it("rejects unsupported roles, realms, and character names", () => {
+    const validCharacter = { realm: "Area 52", characterName: "Bulwark" };
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "bard" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Not A Realm", characterName: "Bulwark" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Area 52", characterName: "x" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Area 52", characterName: "x".repeat(13) })).toThrow();
   });
 
   it("accepts only supported moderation transitions", () => {
@@ -31,4 +35,3 @@ describe("queue schemas", () => {
     expect(canModerateRole("broadcaster")).toBe(true);
   });
 });
-

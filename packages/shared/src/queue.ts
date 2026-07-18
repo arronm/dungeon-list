@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { northAmericanRealms } from "./realms.js";
 
 export const queueRoles = ["tank", "healer", "dps"] as const;
 export const queueEntryStatuses = ["waiting", "invited", "completed", "skipped"] as const;
@@ -7,6 +8,7 @@ export const extensionRoles = ["viewer", "moderator", "broadcaster", "external"]
 export const queueRoleSchema = z.enum(queueRoles);
 export const queueEntryStatusSchema = z.enum(queueEntryStatuses);
 export const extensionRoleSchema = z.enum(extensionRoles);
+export const northAmericanRealmSchema = z.enum(northAmericanRealms);
 
 export type QueueRole = z.infer<typeof queueRoleSchema>;
 export type QueueEntryStatus = z.infer<typeof queueEntryStatusSchema>;
@@ -14,12 +16,12 @@ export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
 
 export const joinQueueRequestSchema = z.object({
   role: queueRoleSchema,
-  note: z
+  realm: northAmericanRealmSchema,
+  characterName: z
     .string()
     .trim()
-    .max(160, "Notes must be 160 characters or fewer.")
-    .optional()
-    .transform((value) => value ?? ""),
+    .min(2, "Character name must be at least 2 characters.")
+    .max(12, "Character name must be 12 characters or fewer.")
 });
 
 export const setQueueSettingsRequestSchema = z.object({
@@ -59,7 +61,8 @@ export interface QueueEntryDto {
   twitchUserId: string;
   displayName: string | null;
   role: QueueRole;
-  note: string;
+  realm: string;
+  characterName: string;
   status: QueueEntryStatus;
   position: number;
   joinedAt: string;

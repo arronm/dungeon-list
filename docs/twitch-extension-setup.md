@@ -133,6 +133,8 @@ Chrome 142 and newer also require Local Network Access permission when Twitch lo
 - PubSub messages are signed by the EBS with an `external` role JWT and only send a compact invalidation event; clients refetch the queue from the API.
 - Viewer clients also poll every 15 seconds while visible and refresh when the tab regains focus, so queues remain current if PubSub is unavailable.
 
-## Future Key Volunteering
+## Queue Character Data
 
-The v1 queue stores role and optional note only. A future key-volunteering feature should add a nullable structured key offer to queue entries, then expose dungeon, level, and availability controls in the signup form. The existing per-channel queue and moderation endpoints can remain the authority for ordering and status changes.
+Each signup stores a role, character name, and Retail realm from Blizzard's United States realm category. The realm catalog in `packages/shared/src/realms.ts` was retrieved from Blizzard's official Americas & Oceania realm-status dataset and is shared by frontend options and backend request validation. Character details use a versioned representation in the existing queue-entry storage field so this update does not require a database migration.
+
+A future key-volunteering feature should add a nullable structured key offer to queue entries, then expose dungeon, level, and availability controls in the signup form. The existing per-channel queue and moderation endpoints can remain the authority for ordering and status changes.

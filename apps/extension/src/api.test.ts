@@ -23,13 +23,17 @@ describe("extension API client", () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
     vi.stubGlobal("fetch", fetchMock);
 
-    await joinQueue("extension-jwt", "helix-jwt", { role: "tank", note: "Ready" });
+    await joinQueue("extension-jwt", "helix-jwt", {
+      role: "tank",
+      realm: "Area 52",
+      characterName: "Bulwark"
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/queue/join",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ role: "tank", note: "Ready" })
+        body: JSON.stringify({ role: "tank", realm: "Area 52", characterName: "Bulwark" })
       })
     );
   });
