@@ -42,7 +42,6 @@ export interface LocalMockViewer {
   opaqueId: string;
   role: ExtensionRole;
   isLinked: boolean;
-  displayName?: string;
 }
 
 export interface LocalMockContext {
@@ -100,7 +99,6 @@ export function getLocalMockViewer(): LocalMockViewer | undefined {
 
   if (mockLinked) {
     viewer.id = mockViewerUserId;
-    viewer.displayName = mockDisplayName;
   }
 
   return viewer;
@@ -156,7 +154,7 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
   if (existing) {
     existing.role = input.role;
     existing.note = input.note;
-    existing.displayName = input.displayName ?? mockDisplayName;
+    existing.displayName = mockDisplayName;
     existing.status = "waiting";
     existing.updatedAt = now();
   } else {
@@ -164,7 +162,7 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
       createEntry(
         `mock-${Date.now()}`,
         viewer.userId,
-        input.displayName ?? mockDisplayName,
+        mockDisplayName,
         input.role,
         input.note,
         "waiting",

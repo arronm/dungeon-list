@@ -6,18 +6,20 @@ import {
   setEntryStatusRequestSchema,
   setQueueSettingsRequestSchema
 } from "@dungeon-list/shared";
-import { getPrincipal, requireQueueManager } from "./auth.js";
+import { getPrincipal, requireLinkedViewer, requireQueueManager } from "./auth.js";
 import { ApiError } from "./errors.js";
 import type { TwitchPubSubPublisher } from "./pubsub.js";
 import type { QueueRepository } from "./repository.js";
+import type { TwitchUserClient } from "./twitchUser.js";
 
 export interface RouteDependencies {
   repository: QueueRepository;
   pubsub: TwitchPubSubPublisher;
+  twitchUsers: TwitchUserClient;
 }
 
 export function registerRoutes(app: FastifyInstance, dependencies: RouteDependencies): void {
-  const { repository, pubsub } = dependencies;
+  const { repository, pubsub, twitchUsers } = dependencies;
 
   async function publishMutation(queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>, app: FastifyInstance) {
     try {
@@ -36,13 +38,25 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
 
   app.get("/api/queue", async (request) => {
     const principal = getPrincipal(request);
+    const helixToken = getHelixToken(request);
+    if (principal.userId && helixToken) {
+      try {
+        const displayName = await twitchUsers.getDisplayName(principal.userId, helixToken);
+        await repository.syncCurrentViewerDisplayName(principal, displayName);
+      } catch (error) {
+        request.log.warn({ error, userId: principal.userId }, "failed to synchronize Twitch display name");
+      }
+    }
     return { queue: await repository.getQueueState(principal) };
   });
 
   app.post("/api/queue/join", async (request) => {
     const principal = getPrincipal(request);
+    const userId = requireLinkedViewer(principal);
+    const helixToken = requireHelixToken(request);
+    const displayName = await twitchUsers.getDisplayName(userId, helixToken);
     const input = joinQueueRequestSchema.parse(request.body);
-    const queue = await repository.join(principal, input);
+    const queue = await repository.join(principal, input, displayName);
     return publishMutation(queue, app);
   });
 
@@ -94,6 +108,19 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   });
 }
 
+function getHelixToken(request: { headers: Record<string, unknown> }): string | undefined {
+  const value = request.headers["x-twitch-helix-token"];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function requireHelixToken(request: { headers: Record<string, unknown> }): string {
+  const token = getHelixToken(request);
+  if (!token) {
+    throw new ApiError(400, "missing_helix_token", "Refresh the extension before joining the waitlist.");
+  }
+  return token;
+}
+
 export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
@@ -123,4 +150,3 @@ export function registerErrorHandler(app: FastifyInstance): void {
     });
   });
 }
-

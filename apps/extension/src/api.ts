@@ -48,21 +48,24 @@ async function request<T>(path: string, token: string, init: RequestInit = {}): 
   return (await response.json()) as T;
 }
 
-export function getQueue(token: string): Promise<QueueStateResponse> {
+export function getQueue(token: string, helixToken: string): Promise<QueueStateResponse> {
   if (shouldUseLocalMock(token)) {
     return mockGetQueue();
   }
 
-  return request<QueueStateResponse>("/api/queue", token);
+  return request<QueueStateResponse>("/api/queue", token, {
+    headers: { "X-Twitch-Helix-Token": helixToken }
+  });
 }
 
-export function joinQueue(token: string, body: JoinQueueRequest): Promise<QueueStateResponse> {
+export function joinQueue(token: string, helixToken: string, body: JoinQueueRequest): Promise<QueueStateResponse> {
   if (shouldUseLocalMock(token)) {
     return mockJoinQueue(body);
   }
 
   return request<QueueStateResponse>("/api/queue/join", token, {
     method: "POST",
+    headers: { "X-Twitch-Helix-Token": helixToken },
     body: JSON.stringify(body)
   });
 }

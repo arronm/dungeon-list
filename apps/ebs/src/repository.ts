@@ -27,7 +27,11 @@ export class QueueRepository {
     });
   }
 
-  async join(principal: ExtensionPrincipal, input: JoinQueueRequest): Promise<QueueStateDto> {
+  async join(
+    principal: ExtensionPrincipal,
+    input: JoinQueueRequest,
+    verifiedDisplayName: string
+  ): Promise<QueueStateDto> {
     const twitchUserId = requireLinkedViewer(principal);
 
     return this.prisma.$transaction(async (tx) => {
@@ -47,7 +51,7 @@ export class QueueRepository {
 
       const nextPosition = await this.nextActivePosition(tx, principal.channelId);
       const position = existing && existing.status !== "completed" ? existing.position : nextPosition;
-      const displayName = input.displayName ?? existing?.displayName ?? null;
+      const displayName = verifiedDisplayName || existing?.displayName || null;
 
       const entry = existing
         ? await tx.queueEntry.update({
@@ -82,6 +86,18 @@ export class QueueRepository {
     });
   }
 
+  async syncCurrentViewerDisplayName(principal: ExtensionPrincipal, displayName: string): Promise<void> {
+    const twitchUserId = requireLinkedViewer(principal);
+    await this.prisma.queueEntry.updateMany({
+      where: {
+        channelId: principal.channelId,
+        twitchUserId,
+        OR: [{ displayName: null }, { displayName: { not: displayName } }]
+      },
+      data: { displayName }
+    });
+  }
+
   async leave(principal: ExtensionPrincipal): Promise<QueueStateDto> {
     const twitchUserId = requireLinkedViewer(principal);
 
@@ -97,8 +113,9 @@ export class QueueRepository {
       });
 
       if (existing) {
+        await this.detachEntryEvents(tx, existing.id);
         await tx.queueEntry.delete({ where: { id: existing.id } });
-        await this.writeEvent(tx, principal, "entry.left", existing.id);
+        await this.writeEvent(tx, principal, "entry.left", undefined, { removedEntryId: existing.id });
         await this.normalizeActivePositions(tx, principal.channelId);
       }
 
@@ -163,8 +180,9 @@ export class QueueRepository {
   async removeEntry(principal: ExtensionPrincipal, entryId: string): Promise<QueueStateDto> {
     return this.prisma.$transaction(async (tx) => {
       await this.requireEntryInChannel(tx, principal, entryId);
+      await this.detachEntryEvents(tx, entryId);
       await tx.queueEntry.delete({ where: { id: entryId } });
-      await this.writeEvent(tx, principal, "entry.removed", entryId);
+      await this.writeEvent(tx, principal, "entry.removed", undefined, { removedEntryId: entryId });
       await this.normalizeActivePositions(tx, principal.channelId);
       const revision = await this.touchChannel(tx, principal.channelId);
       return this.getQueueStateInTransaction(tx, principal, revision);
@@ -174,6 +192,13 @@ export class QueueRepository {
   async clear(principal: ExtensionPrincipal): Promise<QueueStateDto> {
     return this.prisma.$transaction(async (tx) => {
       await this.ensureChannel(tx, principal.channelId);
+      await tx.queueEvent.updateMany({
+        where: {
+          channelId: principal.channelId,
+          entryId: { not: null }
+        },
+        data: { entryId: null }
+      });
       await tx.queueEntry.deleteMany({ where: { channelId: principal.channelId } });
       await this.writeEvent(tx, principal, "queue.cleared");
       const revision = await this.touchChannel(tx, principal.channelId);
@@ -227,6 +252,13 @@ export class QueueRepository {
     }
 
     return entry;
+  }
+
+  private async detachEntryEvents(tx: TransactionClient, entryId: string): Promise<void> {
+    await tx.queueEvent.updateMany({
+      where: { entryId },
+      data: { entryId: null }
+    });
   }
 
   private async normalizeActivePositions(tx: TransactionClient, channelId: string): Promise<void> {

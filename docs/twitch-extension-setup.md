@@ -7,7 +7,8 @@ This project is a Twitch Component Extension with a separate Extension Backend S
 Create a new Extension in the Twitch Developer Console:
 
 - Type: **Component**
-- Viewer path: `/index.html`
+- Video - Component viewer path: `index.html`
+- Autoscale: **Disabled** (the UI is responsive; a fixed Scale Pixels value shrinks it)
 - Backend URL allowlist: the public HTTPS origin for the EBS
 - Local test base URI: the HTTPS URL that serves `apps/extension`
 - OAuth redirect URL: not required for v1
@@ -105,6 +106,23 @@ npm run build:extension-zip
 ```
 
 The script packages `apps/extension/dist` into `extension-build.zip` at the repository root. Upload that zip in the Twitch Developer Console.
+
+The build reads `VITE_EBS_BASE_URL` from the repository-root `.env` and fails if it is missing. For Hosted Test, it must be the public HTTPS EBS origin.
+
+## Blank Extension Troubleshooting
+
+Inspect the extension's inner iframe with browser DevTools and check its Network and Console tabs:
+
+1. A `404` for `index.html` means the viewer path or ZIP layout is wrong. Use the relative viewer path `index.html`; `index.html` must be at the ZIP root, not inside a directory.
+2. A CORS error loading the Local Test `index.html` means the static server is not allowing the Twitch supervisor origin. Use this repository's Vite preview configuration or serve the assets through an HTTPS host that permits `https://supervisor.ext-twitch.tv`.
+3. A CSP `connect-src` error means the EBS origin is absent from **Allowlist for URL Fetching Domains**. Add `https://dungeon-list.onrender.com` for the current deployment.
+4. A request to the extension's own `/api/queue` means the frontend was built without `VITE_EBS_BASE_URL`. Rebuild and upload `extension-build.zip`.
+5. No `onAuthorized` callback or an unavailable `window.Twitch.ext` points to the Twitch Extension Helper being blocked, an invalid test/view context, or a browser extension/privacy setting.
+6. A pending or failed request to `https://dungeon-list.onrender.com/health` means the EBS deployment must be restored before queue data can load.
+
+For Local Test, use `http://localhost:5173/` only after enabling Chrome's `chrome://flags/#allow-insecure-localhost` flag and restarting Chrome. The Testing Base URI must end in `/` and the Component viewer path must be `index.html`. Otherwise, serve the frontend through an HTTPS tunnel.
+
+Chrome 142 and newer also require Local Network Access permission when Twitch loads a loopback URL. Allow Twitch's **Local network access** or **Loopback network** permission in Chrome's site settings. An HTTPS tunnel avoids the loopback restriction entirely and is the preferred fallback when the permission is unavailable inside Twitch's nested extension iframe.
 
 ## Security Model
 

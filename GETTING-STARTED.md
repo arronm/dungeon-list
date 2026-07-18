@@ -130,21 +130,23 @@ npm run localtest:extension
 This builds the extension and serves `apps/extension/dist` on:
 
 ```text
-http://127.0.0.1:5173/
+http://localhost:5173/
 ```
 
 In Twitch **Asset Hosting**, use:
 
 ```text
-Testing Base URI: http://127.0.0.1:5173/
+Testing Base URI: http://localhost:5173/
 Video - Component Viewer Path: index.html
 Config Path: index.html
 ```
 
+When using HTTP localhost in Chrome, enable `chrome://flags/#allow-insecure-localhost` and restart Chrome. Otherwise, use an HTTPS tunnel; Twitch is served over HTTPS and the browser can reject an insecure extension iframe.
+
 Open this directly in your browser as a quick static-serving check:
 
 ```text
-http://127.0.0.1:5173/index.html
+http://localhost:5173/index.html
 ```
 
 Outside Twitch, the production preview should show the fallback message telling you to open it from Twitch. Inside Twitch Local Test, Twitch injects authorization and the queue UI should load.
@@ -267,6 +269,7 @@ Use:
 ```text
 Extension type: Component
 Viewer path: index.html
+Autoscale: Disabled
 Local Test Base URI: https://<frontend-host>/
 URL Fetching Domain Allowlist: <EBS host>
 Identity Linking: Enabled

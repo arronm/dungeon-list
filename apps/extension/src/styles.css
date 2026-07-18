@@ -15,10 +15,20 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  min-width: 280px;
   background: transparent;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
 
 button,
@@ -62,7 +72,7 @@ textarea {
 }
 
 .shell {
-  width: min(100vw, 420px);
+  width: 100%;
   min-height: 100vh;
   padding: 10px;
   background:
@@ -350,4 +360,3 @@ h2 {
     transform: rotate(360deg);
   }
 }
-

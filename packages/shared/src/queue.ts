@@ -20,12 +20,6 @@ export const joinQueueRequestSchema = z.object({
     .max(160, "Notes must be 160 characters or fewer.")
     .optional()
     .transform((value) => value ?? ""),
-  displayName: z
-    .string()
-    .trim()
-    .min(1)
-    .max(40)
-    .optional()
 });
 
 export const setQueueSettingsRequestSchema = z.object({
@@ -95,4 +89,3 @@ export interface QueueStateResponse {
 export function canModerateRole(role: ExtensionRole): boolean {
   return role === "broadcaster" || role === "moderator";
 }
-

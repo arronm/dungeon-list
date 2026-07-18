@@ -21,7 +21,6 @@ export interface TwitchViewer {
   opaqueId?: string;
   role?: string;
   isLinked?: boolean;
-  displayName?: string;
 }
 
 export interface TwitchExtContext {
@@ -119,8 +118,4 @@ export function requestIdentityShare(): void {
   }
 
   window.Twitch?.ext.actions.requestIdShare();
-}
-
-export function getViewerDisplayName(viewer?: TwitchViewer): string | undefined {
-  return viewer?.displayName || viewer?.id;
 }

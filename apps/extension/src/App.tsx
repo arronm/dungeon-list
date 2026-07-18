@@ -32,7 +32,7 @@ import {
   updateEntryStatus,
   updateQueueSettings
 } from "./api.js";
-import { getViewerDisplayName, requestIdentityShare, useTwitchAuth } from "./twitch.js";
+import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
 
 const roleLabels: Record<QueueRole, string> = {
   tank: "Tank",
@@ -57,6 +57,7 @@ const statusOrder: Record<QueueEntryStatus, number> = {
 export function App() {
   const twitch = useTwitchAuth();
   const token = twitch.authorization?.token;
+  const helixToken = twitch.authorization?.helixToken;
   const [queue, setQueue] = useState<QueueStateDto | undefined>();
   const [role, setRole] = useState<QueueRole>("dps");
   const [note, setNote] = useState("");
@@ -76,14 +77,14 @@ export function App() {
   const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry);
 
   const refreshQueue = useCallback(async () => {
-    if (!token) {
+    if (!token || !helixToken) {
       return;
     }
 
     setError(undefined);
-    const response = await getQueue(token);
+    const response = await getQueue(token, helixToken);
     setQueue(response.queue);
-  }, [token]);
+  }, [helixToken, token]);
 
   useEffect(() => {
     refreshQueue().catch((cause) => setError(errorMessage(cause)));
@@ -127,7 +128,7 @@ export function App() {
   }
 
   function submitJoin() {
-    if (!token) {
+    if (!token || !helixToken) {
       return;
     }
 
@@ -136,12 +137,7 @@ export function App() {
         role,
         note
       };
-      const displayName = getViewerDisplayName(twitch.viewer);
-      if (displayName) {
-        body.displayName = displayName;
-      }
-
-      const response = await joinQueue(token, body);
+      const response = await joinQueue(token, helixToken, body);
       setQueue(response.queue);
     });
   }
