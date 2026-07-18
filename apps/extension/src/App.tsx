@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -54,6 +54,8 @@ const statusOrder: Record<QueueEntryStatus, number> = {
   completed: 3
 };
 
+const queuePollIntervalMs = 15_000;
+
 export function App() {
   const twitch = useTwitchAuth();
   const token = twitch.authorization?.token;
@@ -63,6 +65,7 @@ export function App() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
+  const queueRequestGeneration = useRef(0);
 
   const sortedEntries = useMemo(() => {
     return [...(queue?.entries ?? [])].sort((a, b) => {
@@ -76,19 +79,49 @@ export function App() {
   const currentEntry = queue?.entries.find((entry) => entry.isCurrentViewer);
   const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry);
 
+  const applyActionQueue = useCallback((nextQueue: QueueStateDto) => {
+    queueRequestGeneration.current += 1;
+    setQueue(nextQueue);
+  }, []);
+
   const refreshQueue = useCallback(async () => {
     if (!token || !helixToken) {
       return;
     }
 
     setError(undefined);
+    const requestGeneration = ++queueRequestGeneration.current;
     const response = await getQueue(token, helixToken);
-    setQueue(response.queue);
+    if (requestGeneration === queueRequestGeneration.current) {
+      setQueue(response.queue);
+    }
   }, [helixToken, token]);
 
   useEffect(() => {
     refreshQueue().catch((cause) => setError(errorMessage(cause)));
   }, [refreshQueue]);
+
+  useEffect(() => {
+    if (!token || !helixToken) {
+      return;
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshQueue().catch((cause) => setError(errorMessage(cause)));
+      }
+    };
+
+    const intervalId = window.setInterval(refreshWhenVisible, queuePollIntervalMs);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
+  }, [helixToken, refreshQueue, token]);
 
   useEffect(() => {
     if (!token || !window.Twitch?.ext) {
@@ -138,7 +171,7 @@ export function App() {
         note
       };
       const response = await joinQueue(token, helixToken, body);
-      setQueue(response.queue);
+      applyActionQueue(response.queue);
     });
   }
 
@@ -149,14 +182,14 @@ export function App() {
 
     void runAction("leave", async () => {
       const response = await leaveQueue(token);
-      setQueue(response.queue);
+      applyActionQueue(response.queue);
     });
   }
 
   function submitModeration(action: string, callback: () => Promise<{ queue: QueueStateDto }>) {
     void runAction(action, async () => {
       const response = await callback();
-      setQueue(response.queue);
+      applyActionQueue(response.queue);
     });
   }
 

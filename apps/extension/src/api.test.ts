@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getQueue, joinQueue } from "./api.js";
+import { clearQueue, getQueue, joinQueue, leaveQueue } from "./api.js";
 
 describe("extension API client", () => {
   afterEach(() => {
@@ -12,15 +12,11 @@ describe("extension API client", () => {
 
     await getQueue("extension-jwt", "helix-jwt");
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/queue",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer extension-jwt",
-          "X-Twitch-Helix-Token": "helix-jwt"
-        })
-      })
-    );
+    const [, init] = fetchMock.mock.calls[0]!;
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer extension-jwt");
+    expect(headers.get("X-Twitch-Helix-Token")).toBe("helix-jwt");
+    expect(headers.has("Content-Type")).toBe(false);
   });
 
   it("submits only queue fields when joining", async () => {
@@ -36,6 +32,22 @@ describe("extension API client", () => {
         body: JSON.stringify({ role: "tank", note: "Ready" })
       })
     );
+  });
+
+  it.each([
+    ["leave", leaveQueue, "/api/queue/leave"],
+    ["clear", clearQueue, "/api/moderation/clear"]
+  ])("does not declare an empty JSON body for %s", async (_name, action, path) => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await action("extension-jwt");
+
+    const [requestPath, init] = fetchMock.mock.calls[0]!;
+    expect(requestPath).toBe(path);
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeUndefined();
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
   });
 });
 

@@ -349,6 +349,8 @@ POST https://api.twitch.tv/helix/extensions/pubsub
 
 It sends a compact `queue.updated` event, and clients refetch `/api/queue`. This keeps PubSub messages small and avoids putting full queue state in Twitch PubSub.
 
+The frontend also polls the queue every 15 seconds while the Twitch tab is visible and refreshes immediately when the tab regains focus. This is a fallback for disabled, delayed, or misconfigured PubSub; correctly configured PubSub remains the immediate update path.
+
 ## 8. Why This Setup
 
 Twitch Extensions are sandboxed iframes. The frontend gets a signed Extension JWT from `window.Twitch.ext.onAuthorized`, sends it to the EBS as a bearer token, and the EBS verifies it before allowing queue changes. Twitch refreshes this JWT, so the frontend must always use the latest token.

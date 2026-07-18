@@ -141,6 +141,19 @@ export function registerErrorHandler(app: FastifyInstance): void {
       });
     }
 
+    if (error instanceof Error) {
+      const statusCode = "statusCode" in error ? error.statusCode : undefined;
+      if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+        const code = "code" in error && typeof error.code === "string" ? error.code : "bad_request";
+        return reply.status(statusCode).send({
+          error: {
+            code,
+            message: error.message
+          }
+        });
+      }
+    }
+
     app.log.error({ error }, "unhandled request error");
     return reply.status(500).send({
       error: {

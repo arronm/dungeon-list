@@ -131,6 +131,7 @@ Chrome 142 and newer also require Local Network Access permission when Twitch lo
 - Viewers must share identity before joining so the queue can maintain one active entry per Twitch user per channel.
 - Broadcaster and moderator actions are allowed only when the verified token role is `broadcaster` or `moderator`.
 - PubSub messages are signed by the EBS with an `external` role JWT and only send a compact invalidation event; clients refetch the queue from the API.
+- Viewer clients also poll every 15 seconds while visible and refresh when the tab regains focus, so queues remain current if PubSub is unavailable.
 
 ## Future Key Volunteering
 
