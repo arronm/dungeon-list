@@ -150,7 +150,9 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
     throw new Error("The waitlist is currently closed.");
   }
 
-  const existing = entries.find((entry) => entry.twitchUserId === viewer.userId);
+  const existing = entries.find(
+    (entry) => entry.twitchUserId === viewer.userId && entry.status !== "completed"
+  );
   if (existing) {
     existing.role = input.role;
     existing.realm = input.realm;
@@ -181,7 +183,7 @@ export async function mockLeaveQueue(): Promise<{ queue: QueueStateDto }> {
   const userId = getQueueState().viewer.userId;
 
   if (userId) {
-    entries = entries.filter((entry) => entry.twitchUserId !== userId);
+    entries = entries.filter((entry) => entry.twitchUserId !== userId || entry.status === "completed");
     normalizeActivePositions();
     touchQueue();
   }
@@ -271,7 +273,7 @@ function getQueueState(): QueueStateDto {
     viewer,
     entries: entries.map((entry) => ({
       ...entry,
-      isCurrentViewer: mockLinked && entry.twitchUserId === mockViewerUserId
+      isCurrentViewer: mockLinked && entry.twitchUserId === mockViewerUserId && entry.status !== "completed"
     }))
   };
 }

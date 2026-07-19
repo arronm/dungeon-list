@@ -41,17 +41,16 @@ export class QueueRepository {
         throw new ApiError(409, "queue_closed", "The waitlist is currently closed.");
       }
 
-      const existing = await tx.queueEntry.findUnique({
+      const existing = await tx.queueEntry.findFirst({
         where: {
-          channelId_twitchUserId: {
-            channelId: principal.channelId,
-            twitchUserId
-          }
+          channelId: principal.channelId,
+          twitchUserId,
+          status: { not: "completed" }
         }
       });
 
       const nextPosition = await this.nextActivePosition(tx, principal.channelId);
-      const position = existing && existing.status !== "completed" ? existing.position : nextPosition;
+      const position = existing?.position ?? nextPosition;
       const displayName = verifiedDisplayName || existing?.displayName || null;
       const characterDetails = serializeCharacterDetails(input);
 
@@ -63,8 +62,7 @@ export class QueueRepository {
               note: characterDetails,
               displayName,
               status: "waiting",
-              position,
-              joinedAt: existing.status === "completed" ? new Date() : existing.joinedAt
+              position
             }
           })
         : await tx.queueEntry.create({
@@ -107,12 +105,11 @@ export class QueueRepository {
 
     return this.prisma.$transaction(async (tx) => {
       await this.ensureChannel(tx, principal.channelId);
-      const existing = await tx.queueEntry.findUnique({
+      const existing = await tx.queueEntry.findFirst({
         where: {
-          channelId_twitchUserId: {
-            channelId: principal.channelId,
-            twitchUserId
-          }
+          channelId: principal.channelId,
+          twitchUserId,
+          status: { not: "completed" }
         }
       });
 
@@ -352,7 +349,7 @@ export class QueueRepository {
           position: entry.position,
           joinedAt: entry.joinedAt.toISOString(),
           updatedAt: entry.updatedAt.toISOString(),
-          isCurrentViewer: principal.userId === entry.twitchUserId
+          isCurrentViewer: principal.userId === entry.twitchUserId && entry.status !== "completed"
         };
       })
     };

@@ -34,6 +34,7 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     const activeEntryIndexes = entries.flatMap((entry, index) => (entry.status === "completed" ? [] : [index]));
     const completedEntryIndexes = entries
       .flatMap((entry, index) => (entry.status === "completed" ? [index] : []))
+      .sort((a, b) => entries[b]!.updatedAt.localeCompare(entries[a]!.updatedAt))
       .slice(0, 4);
     const entryIndexes = [...activeEntryIndexes, ...completedEntryIndexes];
     let nextEntryIndex = 0;

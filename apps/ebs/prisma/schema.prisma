@@ -44,7 +44,8 @@ model QueueEntry {
   updatedAt    DateTime         @updatedAt @map("updated_at")
   channel      Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
-  @@unique([channelId, twitchUserId])
+  // Active-entry uniqueness is enforced by a partial index in the SQL migration.
+  @@index([channelId, twitchUserId])
   @@index([channelId, status, position])
   @@map("queue_entries")
 }
@@ -63,4 +64,3 @@ model QueueEvent {
   @@index([channelId, createdAt])
   @@map("queue_events")
 }
-

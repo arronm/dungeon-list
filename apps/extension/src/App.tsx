@@ -84,7 +84,10 @@ export function App() {
   }, [queue?.entries]);
 
   const activeEntries = sortedEntries.filter((entry) => entry.status !== "completed");
-  const completedEntries = sortedEntries.filter((entry) => entry.status === "completed").slice(0, 4);
+  const completedEntries = [...(queue?.entries ?? [])]
+    .filter((entry) => entry.status === "completed")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 4);
   const currentEntry = queue?.entries.find((entry) => entry.isCurrentViewer);
   const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
   const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry && hasCharacterDetails);
