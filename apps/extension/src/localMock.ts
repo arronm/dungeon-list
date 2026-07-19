@@ -2,11 +2,14 @@ import {
   canModerateRole,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
+  offerKeyRequestSchema,
   setEntryStatusRequestSchema,
   setQueueSettingsRequestSchema,
   type ExtensionRole,
   type JoinQueueRequest,
+  type KeyOfferDto,
   type MoveEntryRequest,
+  type OfferKeyRequest,
   type QueueEntryDto,
   type QueueStateDto,
   type SetEntryStatusRequest,
@@ -27,6 +30,10 @@ let entries: QueueEntryDto[] = [
   createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2, 2312),
   createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Critstorm", "Illidan", "waiting", 3, 0),
   createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4, 1975)
+];
+let offers: KeyOfferDto[] = [
+  createOffer("offer-1", "mock-key-owner", "Keyrunner", "tank", "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 12, 2610),
+  createOffer("offer-2", "mock-key-owner", "Keyrunner", "dps", "Fastcast", "Area 52", "offer", "Magisters' Terrace", 8, 2395)
 ];
 
 export interface LocalMockAuthorization {
@@ -196,6 +203,51 @@ export async function mockLeaveQueue(): Promise<{ queue: QueueStateDto }> {
   return { queue: getQueueState() };
 }
 
+export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: QueueStateDto }> {
+  const input = offerKeyRequestSchema.parse(body);
+  const viewer = getQueueState().viewer;
+
+  if (!viewer.userId) {
+    throw new Error("Share Twitch identity before offering a key.");
+  }
+
+  if (!signupsOpen && !viewer.canModerate) {
+    throw new Error("Key submissions are currently closed.");
+  }
+
+  offers.unshift(
+    createOffer(
+      `offer-${Date.now()}`,
+      viewer.userId,
+      mockDisplayName,
+      input.role,
+      input.characterName,
+      input.realm,
+      input.keyIntent,
+      input.dungeon,
+      input.keyLevel
+    )
+  );
+  touchQueue();
+  return { queue: getQueueState() };
+}
+
+export async function mockRemoveOffer(offerId: string): Promise<{ queue: QueueStateDto }> {
+  const viewer = getQueueState().viewer;
+  const offer = offers.find((candidate) => candidate.id === offerId);
+  if (!offer) {
+    throw new Error("Key offer was not found.");
+  }
+
+  if (!viewer.canModerate && viewer.userId !== offer.twitchUserId) {
+    throw new Error("Only the offer owner or a queue manager can remove this key.");
+  }
+
+  offers = offers.filter((candidate) => candidate.id !== offerId);
+  touchQueue();
+  return { queue: getQueueState() };
+}
+
 export async function mockUpdateEntryStatus(
   entryId: string,
   body: SetEntryStatusRequest
@@ -279,6 +331,10 @@ function getQueueState(): QueueStateDto {
     entries: entries.map((entry) => ({
       ...entry,
       isCurrentViewer: mockLinked && entry.twitchUserId === mockViewerUserId && entry.status !== "completed"
+    })),
+    offers: offers.map((offer) => ({
+      ...offer,
+      isCurrentViewer: mockLinked && offer.twitchUserId === mockViewerUserId
     }))
   };
 }
@@ -303,7 +359,7 @@ function createEntry(
     role,
     characterName,
     realm,
-    keyIntent: "offer",
+    keyIntent: "need",
     dungeon: "Skyreach",
     keyLevel: 10,
     status,
@@ -322,6 +378,45 @@ function createEntry(
   }
 
   return entry;
+}
+
+function createOffer(
+  id: string,
+  twitchUserId: string,
+  displayName: string,
+  role: KeyOfferDto["role"],
+  characterName: string,
+  realm: string,
+  keyIntent: "offer",
+  dungeon: string,
+  keyLevel: number,
+  raiderIoScore?: number
+): KeyOfferDto {
+  const timestamp = now();
+  const offer: KeyOfferDto = {
+    id,
+    twitchUserId,
+    displayName,
+    role,
+    characterName,
+    realm,
+    keyIntent,
+    dungeon,
+    keyLevel,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    isCurrentViewer: false
+  };
+
+  if (raiderIoScore !== undefined) {
+    offer.raiderIo = {
+      score: raiderIoScore,
+      profileUrl: `https://raider.io/characters/us/${encodeURIComponent(realm.toLowerCase().replaceAll(" ", "-"))}/${encodeURIComponent(characterName)}`,
+      lastCrawledAt: timestamp
+    };
+  }
+
+  return offer;
 }
 
 function getMockRole(): ExtensionRole {

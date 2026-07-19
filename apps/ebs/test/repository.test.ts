@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient, QueueEntry } from "@prisma/client";
+import type { KeyOffer, PrismaClient, QueueEntry } from "@prisma/client";
 import type { ExtensionPrincipal } from "../src/auth.js";
 import { QueueRepository } from "../src/repository.js";
 
@@ -50,6 +50,48 @@ describe("QueueRepository completed history", () => {
   });
 });
 
+describe("QueueRepository key offers", () => {
+  it("allows one viewer to offer multiple characters and remove a single offer", async () => {
+    const database = createTestDatabase([]);
+    const repository = new QueueRepository(database.prisma);
+
+    await repository.offerKey(
+      principal,
+      {
+        role: "tank",
+        realm: "Area 52",
+        characterName: "Wallbuilder",
+        keyIntent: "offer",
+        dungeon: "Windrunner Spire",
+        keyLevel: 12
+      },
+      "QueueViewer"
+    );
+    const offeredKeys = await repository.offerKey(
+      principal,
+      {
+        role: "dps",
+        realm: "Illidan",
+        characterName: "Fastcast",
+        keyIntent: "offer",
+        dungeon: "Magisters' Terrace",
+        keyLevel: 8
+      },
+      "QueueViewer"
+    );
+
+    expect(offeredKeys.entries).toHaveLength(0);
+    expect(offeredKeys.offers).toHaveLength(2);
+    expect(offeredKeys.offers.map((offer) => offer.characterName)).toEqual(["Fastcast", "Wallbuilder"]);
+
+    const remaining = await repository.removeOffer(principal, offeredKeys.offers[0]!.id);
+
+    expect(remaining.offers).toHaveLength(1);
+    expect(remaining.offers[0]?.characterName).toBe("Wallbuilder");
+    expect(database.offers()).toHaveLength(1);
+  });
+});
+
 function createEntry(overrides: Partial<QueueEntry> = {}): QueueEntry {
   const timestamp = new Date("2026-07-18T20:00:00.000Z");
   return {
@@ -67,8 +109,24 @@ function createEntry(overrides: Partial<QueueEntry> = {}): QueueEntry {
   };
 }
 
+function createOffer(overrides: Partial<KeyOffer> = {}): KeyOffer {
+  const timestamp = new Date("2026-07-18T20:00:00.000Z");
+  return {
+    id: "offer-1",
+    channelId: "channel-1",
+    twitchUserId: "viewer-1",
+    displayName: "QueueViewer",
+    role: "dps",
+    note: 'character:v2:["Area 52","Keyrunner","offer","Skyreach",10]',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...overrides
+  };
+}
+
 function createTestDatabase(initialEntries: QueueEntry[]) {
   let entries = [...initialEntries];
+  let offers: KeyOffer[] = [];
   let revision = 0;
   const channel = {
     id: "channel-1",
@@ -126,6 +184,36 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     )
   };
 
+  const keyOffer = {
+    create: vi.fn(async ({ data }: any) => {
+      const timestamp = nextTimestamp();
+      const offer = createOffer({
+        ...data,
+        id: `offer-${offers.length + 1}`,
+        displayName: data.displayName ?? null,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      });
+      offers.push(offer);
+      return offer;
+    }),
+    findFirst: vi.fn(async ({ where }: any) =>
+      offers.find(
+        (offer) => offer.id === where.id && offer.channelId === where.channelId
+      ) ?? null
+    ),
+    findMany: vi.fn(async ({ where }: any) =>
+      offers
+        .filter((offer) => offer.channelId === where.channelId)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    ),
+    delete: vi.fn(async ({ where }: any) => {
+      const offer = offers.find((candidate) => candidate.id === where.id)!;
+      offers = offers.filter((candidate) => candidate.id !== where.id);
+      return offer;
+    })
+  };
+
   const transaction = {
     channel: {
       upsert: vi.fn(async () => channel),
@@ -135,6 +223,7 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
       })
     },
     queueEntry,
+    keyOffer,
     queueEvent: {
       create: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 }))
@@ -146,11 +235,15 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     $disconnect: vi.fn(async () => undefined),
     queueEntry: {
       updateMany: vi.fn(async () => ({ count: 0 }))
+    },
+    keyOffer: {
+      updateMany: vi.fn(async () => ({ count: 0 }))
     }
   } as unknown as PrismaClient;
 
   return {
     prisma,
-    entries: () => entries
+    entries: () => entries,
+    offers: () => offers
   };
 }

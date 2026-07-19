@@ -1,6 +1,7 @@
 import type {
   JoinQueueRequest,
   MoveEntryRequest,
+  OfferKeyRequest,
   QueueStateResponse,
   SetEntryStatusRequest,
   SetQueueSettingsRequest
@@ -12,6 +13,8 @@ import {
   mockJoinQueue,
   mockLeaveQueue,
   mockMoveEntry,
+  mockOfferKey,
+  mockRemoveOffer,
   mockRemoveEntry,
   mockUpdateEntryStatus,
   mockUpdateQueueSettings
@@ -79,6 +82,32 @@ export function leaveQueue(token: string): Promise<QueueStateResponse> {
 
   return request<QueueStateResponse>("/api/queue/leave", token, {
     method: "POST"
+  });
+}
+
+export function offerKey(
+  token: string,
+  helixToken: string,
+  body: OfferKeyRequest
+): Promise<QueueStateResponse> {
+  if (shouldUseLocalMock(token)) {
+    return mockOfferKey(body);
+  }
+
+  return request<QueueStateResponse>("/api/offers", token, {
+    method: "POST",
+    headers: { "X-Twitch-Helix-Token": helixToken },
+    body: JSON.stringify(body)
+  });
+}
+
+export function removeOffer(token: string, offerId: string): Promise<QueueStateResponse> {
+  if (shouldUseLocalMock(token)) {
+    return mockRemoveOffer(offerId);
+  }
+
+  return request<QueueStateResponse>(`/api/offers/${offerId}`, token, {
+    method: "DELETE"
   });
 }
 

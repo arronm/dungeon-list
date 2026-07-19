@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import {
   joinQueueRequestSchema,
   moveEntryRequestSchema,
+  offerKeyRequestSchema,
   setEntryStatusRequestSchema,
   setQueueSettingsRequestSchema
 } from "@dungeon-list/shared";
@@ -26,44 +27,53 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   async function enrichQueueWithRaiderIo(
     queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>
   ): Promise<Awaited<ReturnType<QueueRepository["getQueueState"]>>> {
-    if (!queue.viewer.canModerate || !queue.entries.length) {
+    if (!queue.viewer.canModerate || (!queue.entries.length && !queue.offers.length)) {
       return queue;
     }
 
     const entries = [...queue.entries];
+    const offers = [...queue.offers];
     const activeEntryIndexes = entries.flatMap((entry, index) => (entry.status === "completed" ? [] : [index]));
     const completedEntryIndexes = entries
       .flatMap((entry, index) => (entry.status === "completed" ? [index] : []))
       .sort((a, b) => entries[b]!.updatedAt.localeCompare(entries[a]!.updatedAt))
       .slice(0, 4);
-    const entryIndexes = [...activeEntryIndexes, ...completedEntryIndexes];
-    let nextEntryIndex = 0;
+    const targets = [
+      ...activeEntryIndexes.map((index) => ({ type: "entry" as const, index })),
+      ...completedEntryIndexes.map((index) => ({ type: "entry" as const, index })),
+      ...offers.map((_offer, index) => ({ type: "offer" as const, index }))
+    ];
+    let nextTargetIndex = 0;
 
-    async function enrichNextEntry(): Promise<void> {
-      while (nextEntryIndex < entryIndexes.length) {
-        const entryIndex = entryIndexes[nextEntryIndex]!;
-        nextEntryIndex += 1;
-        const entry = entries[entryIndex]!;
+    async function enrichNextCharacter(): Promise<void> {
+      while (nextTargetIndex < targets.length) {
+        const target = targets[nextTargetIndex]!;
+        nextTargetIndex += 1;
+        const character = target.type === "entry" ? entries[target.index]! : offers[target.index]!;
 
-        if (!entry.characterName || !entry.realm) {
+        if (!character.characterName || !character.realm) {
           continue;
         }
 
         try {
-          const profile = await raiderIo.getCharacterProfile(entry.characterName, entry.realm);
-          entries[entryIndex] = { ...entry, raiderIo: profile };
+          const profile = await raiderIo.getCharacterProfile(character.characterName, character.realm);
+          if (target.type === "entry") {
+            entries[target.index] = { ...entries[target.index]!, raiderIo: profile };
+          } else {
+            offers[target.index] = { ...offers[target.index]!, raiderIo: profile };
+          }
         } catch (error) {
           app.log.warn(
-            { error, characterName: entry.characterName, realm: entry.realm },
-            "failed to enrich queue entry with Raider.IO"
+            { error, characterName: character.characterName, realm: character.realm },
+            "failed to enrich character with Raider.IO"
           );
         }
       }
     }
 
-    const workerCount = Math.min(4, entryIndexes.length);
-    await Promise.all(Array.from({ length: workerCount }, () => enrichNextEntry()));
-    return { ...queue, entries };
+    const workerCount = Math.min(4, targets.length);
+    await Promise.all(Array.from({ length: workerCount }, () => enrichNextCharacter()));
+    return { ...queue, entries, offers };
   }
 
   async function publishMutation(queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>, app: FastifyInstance) {
@@ -109,6 +119,23 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   app.post("/api/queue/leave", async (request) => {
     const principal = getPrincipal(request);
     const queue = await repository.leave(principal);
+    return publishMutation(queue, app);
+  });
+
+  app.post("/api/offers", async (request) => {
+    const principal = getPrincipal(request);
+    const userId = requireLinkedViewer(principal);
+    const helixToken = requireHelixToken(request);
+    const displayName = await twitchUsers.getDisplayName(userId, helixToken);
+    const input = offerKeyRequestSchema.parse(request.body);
+    const queue = await repository.offerKey(principal, input, displayName);
+    return publishMutation(queue, app);
+  });
+
+  app.delete("/api/offers/:offerId", async (request) => {
+    const principal = getPrincipal(request);
+    const { offerId } = request.params as { offerId: string };
+    const queue = await repository.removeOffer(principal, offerId);
     return publishMutation(queue, app);
   });
 

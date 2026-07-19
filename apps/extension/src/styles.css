@@ -162,7 +162,8 @@ h2 {
 }
 
 .icon-button,
-.moderation button {
+.moderation button,
+.offer-actions button {
   width: 34px;
   min-width: 34px;
   padding: 0;
@@ -171,7 +172,8 @@ h2 {
 }
 
 :root[data-theme="light"] .icon-button,
-:root[data-theme="light"] .moderation button {
+:root[data-theme="light"] .moderation button,
+:root[data-theme="light"] .offer-actions button {
   background: rgba(35, 31, 32, 0.09);
 }
 
@@ -204,6 +206,27 @@ h2 {
 .identity-panel div {
   flex: 1;
   min-width: 0;
+}
+
+.view-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.view-tabs button {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+:root[data-theme="light"] .view-tabs button {
+  background: rgba(35, 31, 32, 0.09);
+}
+
+.view-tabs button.selected {
+  background: #f5c542;
+  color: #18150a;
 }
 
 .signup {
@@ -445,9 +468,17 @@ h2 {
   overflow-x: auto;
 }
 
-.moderation button.copied {
+.moderation button.copied,
+.offer-actions button.copied {
   background: #19a974;
   color: #07110d;
+}
+
+.offer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .completed {

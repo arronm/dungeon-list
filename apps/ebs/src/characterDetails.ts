@@ -1,4 +1,4 @@
-import type { JoinQueueRequest, QueueEntryDto } from "@dungeon-list/shared";
+import type { JoinQueueRequest, OfferKeyRequest, QueueEntryDto } from "@dungeon-list/shared";
 
 const characterDetailsV1Prefix = "character:v1:";
 const characterDetailsV2Prefix = "character:v2:";
@@ -8,7 +8,7 @@ type StoredSignupDetails = Pick<
   "realm" | "characterName" | "keyIntent" | "dungeon" | "keyLevel"
 >;
 
-export function serializeCharacterDetails(input: JoinQueueRequest): string {
+export function serializeCharacterDetails(input: JoinQueueRequest | OfferKeyRequest): string {
   return `${characterDetailsV2Prefix}${JSON.stringify([
     input.realm,
     input.characterName,

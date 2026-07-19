@@ -19,7 +19,7 @@ export type KeyIntent = z.infer<typeof keyIntentSchema>;
 export type QueueEntryStatus = z.infer<typeof queueEntryStatusSchema>;
 export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
 
-export const joinQueueRequestSchema = z.object({
+const signupDetailsSchema = z.object({
   role: queueRoleSchema,
   realm: northAmericanRealmSchema,
   characterName: z
@@ -27,13 +27,20 @@ export const joinQueueRequestSchema = z.object({
     .trim()
     .min(2, "Character name must be at least 2 characters.")
     .max(12, "Character name must be 12 characters or fewer."),
-  keyIntent: keyIntentSchema,
   dungeon: mythicPlusDungeonSchema,
   keyLevel: z
     .number()
     .int("Key level must be a whole number.")
     .min(2, "Key level must be at least 2.")
     .max(99, "Key level must be 99 or lower.")
+});
+
+export const joinQueueRequestSchema = signupDetailsSchema.extend({
+  keyIntent: z.literal("need")
+});
+
+export const offerKeyRequestSchema = signupDetailsSchema.extend({
+  keyIntent: z.literal("offer")
 });
 
 export const setQueueSettingsRequestSchema = z.object({
@@ -55,6 +62,7 @@ export const queueEventSchema = z.object({
 });
 
 export type JoinQueueRequest = z.infer<typeof joinQueueRequestSchema>;
+export type OfferKeyRequest = z.infer<typeof offerKeyRequestSchema>;
 export type SetQueueSettingsRequest = z.infer<typeof setQueueSettingsRequestSchema>;
 export type SetEntryStatusRequest = z.infer<typeof setEntryStatusRequestSchema>;
 export type MoveEntryRequest = z.infer<typeof moveEntryRequestSchema>;
@@ -92,12 +100,29 @@ export interface QueueEntryDto {
   raiderIo?: RaiderIoSummary | null;
 }
 
+export interface KeyOfferDto {
+  id: string;
+  twitchUserId: string;
+  displayName: string | null;
+  role: QueueRole;
+  realm: string;
+  characterName: string;
+  keyIntent: "offer";
+  dungeon: string;
+  keyLevel: number | null;
+  createdAt: string;
+  updatedAt: string;
+  isCurrentViewer: boolean;
+  raiderIo?: RaiderIoSummary | null;
+}
+
 export interface QueueStateDto {
   channelId: string;
   signupsOpen: boolean;
   revision: string;
   viewer: QueueViewer;
   entries: QueueEntryDto[];
+  offers: KeyOfferDto[];
 }
 
 export interface ApiErrorResponse {

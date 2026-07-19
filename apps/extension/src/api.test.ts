@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearQueue, getQueue, joinQueue, leaveQueue } from "./api.js";
+import { clearQueue, getQueue, joinQueue, leaveQueue, offerKey, removeOffer } from "./api.js";
 
 describe("extension API client", () => {
   afterEach(() => {
@@ -27,7 +27,7 @@ describe("extension API client", () => {
       role: "tank",
       realm: "Area 52",
       characterName: "Bulwark",
-      keyIntent: "offer",
+      keyIntent: "need",
       dungeon: "Skyreach",
       keyLevel: 12
     });
@@ -40,12 +40,46 @@ describe("extension API client", () => {
           role: "tank",
           realm: "Area 52",
           characterName: "Bulwark",
-          keyIntent: "offer",
+          keyIntent: "need",
           dungeon: "Skyreach",
           keyLevel: 12
         })
       })
     );
+  });
+
+  it("submits key offers separately with the Helix JWT", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await offerKey("extension-jwt", "helix-jwt", {
+      role: "dps",
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      keyIntent: "offer",
+      dungeon: "Windrunner Spire",
+      keyLevel: 12
+    });
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/offers",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(new Headers(init?.headers).get("X-Twitch-Helix-Token")).toBe("helix-jwt");
+  });
+
+  it("removes one key offer without sending an empty JSON body", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await removeOffer("extension-jwt", "offer-1");
+
+    const [requestPath, init] = fetchMock.mock.calls[0]!;
+    expect(requestPath).toBe("/api/offers/offer-1");
+    expect(init?.method).toBe("DELETE");
+    expect(init?.body).toBeUndefined();
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
   });
 
   it.each([

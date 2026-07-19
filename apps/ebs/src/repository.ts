@@ -1,8 +1,10 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import {
   canModerateRole,
+  type KeyOfferDto,
   type JoinQueueRequest,
   type MoveEntryRequest,
+  type OfferKeyRequest,
   type QueueEntryDto,
   type QueueEntryStatus,
   type QueueStateDto,
@@ -91,16 +93,53 @@ export class QueueRepository {
     });
   }
 
+  async offerKey(
+    principal: ExtensionPrincipal,
+    input: OfferKeyRequest,
+    verifiedDisplayName: string
+  ): Promise<QueueStateDto> {
+    const twitchUserId = requireLinkedViewer(principal);
+
+    return this.prisma.$transaction(async (tx) => {
+      const channel = await this.ensureChannel(tx, principal.channelId);
+      if (!channel.signupsOpen && !canModerateRole(principal.role)) {
+        throw new ApiError(409, "queue_closed", "Key submissions are currently closed.");
+      }
+
+      const offer = await tx.keyOffer.create({
+        data: {
+          channelId: principal.channelId,
+          twitchUserId,
+          displayName: verifiedDisplayName || null,
+          role: input.role,
+          note: serializeCharacterDetails(input)
+        }
+      });
+
+      await this.writeEvent(tx, principal, "offer.created", undefined, {
+        offerId: offer.id,
+        role: input.role,
+        realm: input.realm,
+        characterName: input.characterName,
+        dungeon: input.dungeon,
+        keyLevel: input.keyLevel
+      });
+      const revision = await this.touchChannel(tx, principal.channelId);
+      return this.getQueueStateInTransaction(tx, principal, revision);
+    });
+  }
+
   async syncCurrentViewerDisplayName(principal: ExtensionPrincipal, displayName: string): Promise<void> {
     const twitchUserId = requireLinkedViewer(principal);
-    await this.prisma.queueEntry.updateMany({
-      where: {
-        channelId: principal.channelId,
-        twitchUserId,
-        OR: [{ displayName: null }, { displayName: { not: displayName } }]
-      },
-      data: { displayName }
-    });
+    const where = {
+      channelId: principal.channelId,
+      twitchUserId,
+      OR: [{ displayName: null }, { displayName: { not: displayName } }]
+    };
+    await Promise.all([
+      this.prisma.queueEntry.updateMany({ where, data: { displayName } }),
+      this.prisma.keyOffer.updateMany({ where, data: { displayName } })
+    ]);
   }
 
   async leave(principal: ExtensionPrincipal): Promise<QueueStateDto> {
@@ -123,6 +162,32 @@ export class QueueRepository {
         await this.normalizeActivePositions(tx, principal.channelId);
       }
 
+      const revision = await this.touchChannel(tx, principal.channelId);
+      return this.getQueueStateInTransaction(tx, principal, revision);
+    });
+  }
+
+  async removeOffer(principal: ExtensionPrincipal, offerId: string): Promise<QueueStateDto> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.ensureChannel(tx, principal.channelId);
+      const offer = await tx.keyOffer.findFirst({
+        where: {
+          id: offerId,
+          channelId: principal.channelId
+        }
+      });
+
+      if (!offer) {
+        throw new ApiError(404, "offer_not_found", "Key offer was not found.");
+      }
+
+      const ownsOffer = Boolean(principal.userId && principal.userId === offer.twitchUserId);
+      if (!ownsOffer && !canModerateRole(principal.role)) {
+        throw new ApiError(403, "forbidden", "Only the offer owner or a queue manager can remove this key.");
+      }
+
+      await tx.keyOffer.delete({ where: { id: offer.id } });
+      await this.writeEvent(tx, principal, "offer.removed", undefined, { removedOfferId: offer.id });
       const revision = await this.touchChannel(tx, principal.channelId);
       return this.getQueueStateInTransaction(tx, principal, revision);
     });
@@ -318,10 +383,16 @@ export class QueueRepository {
     revision: string
   ): Promise<QueueStateDto> {
     const channel = await this.ensureChannel(tx, principal.channelId);
-    const entries = await tx.queueEntry.findMany({
-      where: { channelId: principal.channelId },
-      orderBy: [{ position: "asc" }, { joinedAt: "asc" }]
-    });
+    const [entries, offers] = await Promise.all([
+      tx.queueEntry.findMany({
+        where: { channelId: principal.channelId },
+        orderBy: [{ position: "asc" }, { joinedAt: "asc" }]
+      }),
+      tx.keyOffer.findMany({
+        where: { channelId: principal.channelId },
+        orderBy: [{ createdAt: "desc" }]
+      })
+    ]);
 
     const viewer: QueueStateDto["viewer"] = {
       opaqueUserId: principal.opaqueUserId,
@@ -356,6 +427,23 @@ export class QueueRepository {
           joinedAt: entry.joinedAt.toISOString(),
           updatedAt: entry.updatedAt.toISOString(),
           isCurrentViewer: principal.userId === entry.twitchUserId && entry.status !== "completed"
+        };
+      }),
+      offers: offers.map((offer): KeyOfferDto => {
+        const characterDetails = parseCharacterDetails(offer.note);
+        return {
+          id: offer.id,
+          twitchUserId: offer.twitchUserId,
+          displayName: offer.displayName,
+          role: offer.role,
+          realm: characterDetails.realm,
+          characterName: characterDetails.characterName,
+          keyIntent: "offer",
+          dungeon: characterDetails.dungeon,
+          keyLevel: characterDetails.keyLevel,
+          createdAt: offer.createdAt.toISOString(),
+          updatedAt: offer.updatedAt.toISOString(),
+          isCurrentViewer: principal.userId === offer.twitchUserId
         };
       })
     };

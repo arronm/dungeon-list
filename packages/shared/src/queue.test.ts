@@ -3,6 +3,7 @@ import {
   canModerateRole,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
+  offerKeyRequestSchema,
   setEntryStatusRequestSchema
 } from "./queue.js";
 import { getMythicPlusDungeonShortName, mythicPlusDungeons } from "./dungeons.js";
@@ -32,7 +33,7 @@ describe("queue schemas", () => {
     const validCharacter = {
       realm: "Area 52",
       characterName: "Bulwark",
-      keyIntent: "offer",
+      keyIntent: "need",
       dungeon: "Skyreach",
       keyLevel: 10
     };
@@ -50,6 +51,21 @@ describe("queue schemas", () => {
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", dungeon: "Deadmines" })).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 1 })).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 10.5 })).toThrow();
+  });
+
+  it("keeps queue requests and key offers as separate operations", () => {
+    const signup = {
+      role: "dps",
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      dungeon: "Windrunner Spire",
+      keyLevel: 12
+    };
+
+    expect(joinQueueRequestSchema.parse({ ...signup, keyIntent: "need" }).keyIntent).toBe("need");
+    expect(offerKeyRequestSchema.parse({ ...signup, keyIntent: "offer" }).keyIntent).toBe("offer");
+    expect(() => joinQueueRequestSchema.parse({ ...signup, keyIntent: "offer" })).toThrow();
+    expect(() => offerKeyRequestSchema.parse({ ...signup, keyIntent: "need" })).toThrow();
   });
 
   it("accepts only supported moderation transitions", () => {

@@ -26,6 +26,7 @@ model Channel {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
   entries     QueueEntry[]
+  offers      KeyOffer[]
   events      QueueEvent[]
 
   @@map("channels")
@@ -48,6 +49,22 @@ model QueueEntry {
   @@index([channelId, twitchUserId])
   @@index([channelId, status, position])
   @@map("queue_entries")
+}
+
+model KeyOffer {
+  id           String         @id @default(cuid())
+  channelId    String         @map("channel_id")
+  twitchUserId String         @map("twitch_user_id")
+  displayName  String?        @map("display_name")
+  role         QueueEntryRole
+  note         String         @default("")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  channel      Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([channelId, twitchUserId])
+  @@map("key_offers")
 }
 
 model QueueEvent {

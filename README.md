@@ -29,4 +29,6 @@ The extension frontend expects `VITE_EBS_BASE_URL` to point at the public HTTPS 
 
 Broadcasters and moderators also receive current Mythic+ scores from Raider.IO. Lookups run through the EBS, are cached in memory for two hours, and degrade without blocking queue operations when Raider.IO is unavailable.
 
+Viewers who need a key create one active queue entry. Key offers are stored separately, so a viewer can advertise multiple characters and remove each offer independently.
+
 The current Mythic+ dungeon rotation and its compact UI labels are maintained in `packages/shared/src/dungeons.ts` and should be updated when the seasonal pool changes.

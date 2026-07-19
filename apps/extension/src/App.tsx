@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  KeyRound,
   Loader2,
   Lock,
   LogIn,
@@ -23,8 +24,10 @@ import {
   type QueueEntryStatus,
   type JoinQueueRequest,
   type KeyIntent,
+  type KeyOfferDto,
   type MythicPlusDungeon,
   type NorthAmericanRealm,
+  type OfferKeyRequest,
   type QueueRole,
   type QueueStateDto,
   getMythicPlusDungeonShortName,
@@ -39,7 +42,9 @@ import {
   joinQueue,
   leaveQueue,
   moveEntry,
+  offerKey,
   removeEntry,
+  removeOffer,
   updateEntryStatus,
   updateQueueSettings
 } from "./api.js";
@@ -80,6 +85,7 @@ export function App() {
   const [keyIntent, setKeyIntent] = useState<KeyIntent>("need");
   const [dungeon, setDungeon] = useState<MythicPlusDungeon | "">("");
   const [keyLevel, setKeyLevel] = useState("");
+  const [listView, setListView] = useState<"queue" | "offers">("queue");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
@@ -104,9 +110,8 @@ export function App() {
   const hasKeyDetails = Boolean(
     dungeon && Number.isInteger(normalizedKeyLevel) && normalizedKeyLevel >= 2 && normalizedKeyLevel <= 99
   );
-  const canContinue = Boolean(
-    queue?.viewer.isLinked && queue.signupsOpen && !currentEntry && hasCharacterDetails
-  );
+  const canUseIntent = keyIntent === "offer" || !currentEntry;
+  const canContinue = Boolean(queue?.viewer.isLinked && queue.signupsOpen && canUseIntent && hasCharacterDetails);
   const canJoin = canContinue && hasKeyDetails;
 
   const applyActionQueue = useCallback((nextQueue: QueueStateDto) => {
@@ -204,7 +209,7 @@ export function App() {
     }
   }
 
-  function submitJoin() {
+  function submitSignup() {
     const normalizedCharacterName = characterName.trim();
     if (
       !token ||
@@ -217,18 +222,34 @@ export function App() {
       return;
     }
 
-    void runAction("join", async () => {
-      const body: JoinQueueRequest = {
+    void runAction(keyIntent === "need" ? "join" : "offer", async () => {
+      const details = {
         role,
         realm,
         characterName: normalizedCharacterName,
-        keyIntent,
         dungeon,
         keyLevel: normalizedKeyLevel
       };
-      const response = await joinQueue(token, helixToken, body);
+
+      const response =
+        keyIntent === "need"
+          ? await joinQueue(token, helixToken, { ...details, keyIntent: "need" } satisfies JoinQueueRequest)
+          : await offerKey(token, helixToken, { ...details, keyIntent: "offer" } satisfies OfferKeyRequest);
       applyActionQueue(response.queue);
+
+      if (keyIntent === "offer") {
+        setSignupStep("character");
+        setCharacterName("");
+        setDungeon("");
+        setKeyLevel("");
+      } else {
+        setListView("queue");
+      }
     });
+  }
+
+  function selectListView(view: "queue" | "offers") {
+    setListView(view);
   }
 
   function submitLeave() {
@@ -249,7 +270,7 @@ export function App() {
     });
   }
 
-  function copyInvite(entry: QueueEntryDto) {
+  function copyInvite(entry: Pick<QueueEntryDto, "id" | "characterName" | "realm">) {
     if (!entry.characterName || !entry.realm) {
       return;
     }
@@ -441,9 +462,13 @@ export function App() {
                   <ArrowLeft size={16} />
                   Back
                 </button>
-                <button type="button" disabled={!canJoin || busyAction === "join"} onClick={submitJoin}>
-                  <LogIn size={16} />
-                  Join queue
+                <button
+                  type="button"
+                  disabled={!canJoin || busyAction === "join" || busyAction === "offer"}
+                  onClick={submitSignup}
+                >
+                  {keyIntent === "need" ? <LogIn size={16} /> : <KeyRound size={16} />}
+                  {keyIntent === "need" ? "Join queue" : "Offer key"}
                 </button>
               </div>
             </>
@@ -458,41 +483,77 @@ export function App() {
         </section>
       ) : null}
 
-      <QueueList
-        entries={activeEntries}
-        canModerate={Boolean(queue?.viewer.canModerate)}
-        busyAction={busyAction}
-        copiedEntryId={copiedEntryId}
-        onCopy={copyInvite}
-        onStatus={(entryId, status) =>
-          submitModeration(`status:${entryId}:${status}`, () => updateEntryStatus(token, entryId, { status }))
-        }
-        onMove={(entryId, direction) =>
-          submitModeration(`move:${entryId}:${direction}`, () => moveEntry(token, entryId, { direction }))
-        }
-        onRemove={(entryId) => submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId))}
-      />
-
-      {completedEntries.length ? (
-        <section className="completed">
-          <h2>Completed</h2>
-          {completedEntries.map((entry) => (
-            <EntrySummary key={entry.id} entry={entry} showRaiderIo={Boolean(queue?.viewer.canModerate)} />
-          ))}
-        </section>
+      {queue?.viewer.canModerate ? (
+        <nav className="view-tabs" aria-label="Key lists">
+          <button
+            type="button"
+            className={listView === "queue" ? "selected" : undefined}
+            onClick={() => selectListView("queue")}
+          >
+            Need Keys
+          </button>
+          <button
+            type="button"
+            className={listView === "offers" ? "selected" : undefined}
+            onClick={() => selectListView("offers")}
+          >
+            Available Keys
+          </button>
+        </nav>
       ) : null}
 
-      {queue?.viewer.canModerate && queue.entries.length ? (
-        <button
-          className="clear-button"
-          type="button"
-          disabled={busyAction === "clear"}
-          onClick={() => submitModeration("clear", () => clearQueue(token))}
-        >
-          <Trash2 size={16} />
-          Clear queue
-        </button>
-      ) : null}
+      {!queue?.viewer.canModerate || listView === "queue" ? (
+        <>
+          <QueueList
+            entries={activeEntries}
+            canModerate={Boolean(queue?.viewer.canModerate)}
+            busyAction={busyAction}
+            copiedEntryId={copiedEntryId}
+            onCopy={copyInvite}
+            onStatus={(entryId, status) =>
+              submitModeration(`status:${entryId}:${status}`, () =>
+                updateEntryStatus(token, entryId, { status })
+              )
+            }
+            onMove={(entryId, direction) =>
+              submitModeration(`move:${entryId}:${direction}`, () => moveEntry(token, entryId, { direction }))
+            }
+            onRemove={(entryId) => submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId))}
+          />
+
+          {completedEntries.length ? (
+            <section className="completed">
+              <h2>Completed</h2>
+              {completedEntries.map((entry) => (
+                <EntrySummary key={entry.id} entry={entry} showRaiderIo={Boolean(queue?.viewer.canModerate)} />
+              ))}
+            </section>
+          ) : null}
+
+          {queue?.viewer.canModerate && queue.entries.length ? (
+            <button
+              className="clear-button"
+              type="button"
+              disabled={busyAction === "clear"}
+              onClick={() => submitModeration("clear", () => clearQueue(token))}
+            >
+              <Trash2 size={16} />
+              Clear queue
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <OfferList
+          offers={queue?.offers ?? []}
+          canModerate={Boolean(queue?.viewer.canModerate)}
+          busyAction={busyAction}
+          copiedEntryId={copiedEntryId}
+          onCopy={copyInvite}
+          onRemove={(offerId) =>
+            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
+          }
+        />
+      )}
     </main>
   );
 }
@@ -578,6 +639,85 @@ function QueueList({
   );
 }
 
+interface OfferListProps {
+  offers: KeyOfferDto[];
+  canModerate: boolean;
+  busyAction: string | undefined;
+  copiedEntryId: string | undefined;
+  onCopy(offer: KeyOfferDto): void;
+  onRemove(offerId: string): void;
+}
+
+function OfferList({
+  offers,
+  canModerate,
+  busyAction,
+  copiedEntryId,
+  onCopy,
+  onRemove
+}: OfferListProps) {
+  if (!offers.length) {
+    return <p className="empty">No keys are available yet.</p>;
+  }
+
+  return (
+    <section className="queue-list" aria-label="Available dungeon keys">
+      {offers.map((offer) => {
+        const label = offer.displayName ?? `Viewer ${offer.twitchUserId.slice(-4)}`;
+        const dungeonLabel = getMythicPlusDungeonShortName(offer.dungeon);
+        const canRemove = canModerate || offer.isCurrentViewer;
+
+        return (
+          <article key={offer.id} className={offer.isCurrentViewer ? "entry mine" : "entry"}>
+            <div className="entry-main">
+              <span className="position">{offer.keyLevel === null ? "?" : `+${offer.keyLevel}`}</span>
+              <div className="entry-copy">
+                <div className="entry-line">
+                  <strong title={label}>{label}</strong>
+                  <span className={`badge ${offer.role}`}>{roleLabels[offer.role]}</span>
+                </div>
+                <div className="character-line">
+                  <p title={`${offer.characterName}${offer.realm ? ` - ${offer.realm}` : ""}`}>
+                    {offer.characterName || "Unknown character"}
+                    {offer.realm ? ` - ${offer.realm}` : null}
+                  </p>
+                  {canModerate && offer.raiderIo !== undefined ? <RaiderIoScore entry={offer} /> : null}
+                </div>
+                <p title={offer.dungeon}>Offers {dungeonLabel}</p>
+              </div>
+            </div>
+            {canModerate || canRemove ? (
+              <div className="offer-actions">
+                {canModerate ? (
+                  <button
+                    type="button"
+                    className={copiedEntryId === offer.id ? "copied" : undefined}
+                    title={`Copy ${formatInviteCommand(offer.characterName, offer.realm)}`}
+                    disabled={!offer.characterName || !offer.realm}
+                    onClick={() => onCopy(offer)}
+                  >
+                    {copiedEntryId === offer.id ? <Check size={15} /> : <Copy size={15} />}
+                  </button>
+                ) : null}
+                {canRemove ? (
+                  <button
+                    type="button"
+                    title="Remove key offer"
+                    disabled={Boolean(busyAction)}
+                    onClick={() => onRemove(offer.id)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
 function EntrySummary({ entry, showRaiderIo }: { entry: QueueEntryDto; showRaiderIo: boolean }) {
   const label = entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
   const keyDetails =
@@ -611,7 +751,11 @@ function EntrySummary({ entry, showRaiderIo }: { entry: QueueEntryDto; showRaide
   );
 }
 
-function RaiderIoScore({ entry }: { entry: QueueEntryDto }) {
+function RaiderIoScore({
+  entry
+}: {
+  entry: Pick<QueueEntryDto, "characterName" | "raiderIo"> | Pick<KeyOfferDto, "characterName" | "raiderIo">;
+}) {
   if (!entry.raiderIo) {
     return (
       <span className="raider-io unavailable" title="Raider.IO profile not found">
