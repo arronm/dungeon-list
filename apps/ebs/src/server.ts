@@ -17,6 +17,7 @@ export async function buildServer(config: AppConfig = loadConfig()) {
   });
 
   await app.register(cors, {
+    methods: ["GET", "HEAD", "POST", "DELETE"],
     origin(origin, callback) {
       if (!origin) {
         callback(null, true);
