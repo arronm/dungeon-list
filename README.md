@@ -28,3 +28,5 @@ npm run dev:extension
 The extension frontend expects `VITE_EBS_BASE_URL` to point at the public HTTPS URL of the EBS when running inside Twitch.
 
 Broadcasters and moderators also receive current Mythic+ scores from Raider.IO. Lookups run through the EBS, are cached in memory for two hours, and degrade without blocking queue operations when Raider.IO is unavailable.
+
+The current Mythic+ dungeon rotation and its compact UI labels are maintained in `packages/shared/src/dungeons.ts` and should be updated when the seasonal pool changes.

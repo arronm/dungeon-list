@@ -19,14 +19,28 @@ describe("QueueRepository completed history", () => {
 
     const joinedQueue = await repository.join(
       principal,
-      { role: "tank", realm: "Area 52", characterName: "Bulwark" },
+      {
+        role: "tank",
+        realm: "Area 52",
+        characterName: "Bulwark",
+        keyIntent: "need",
+        dungeon: "Skyreach",
+        keyLevel: 12
+      },
       "QueueViewer"
     );
 
     expect(joinedQueue.entries).toHaveLength(2);
     expect(joinedQueue.entries.find((entry) => entry.id === "completed-1")?.isCurrentViewer).toBe(false);
     const activeEntry = joinedQueue.entries.find((entry) => entry.status !== "completed");
-    expect(activeEntry).toMatchObject({ twitchUserId: "viewer-1", isCurrentViewer: true, position: 1 });
+    expect(activeEntry).toMatchObject({
+      twitchUserId: "viewer-1",
+      isCurrentViewer: true,
+      position: 1,
+      keyIntent: "need",
+      dungeon: "Skyreach",
+      keyLevel: 12
+    });
 
     const leftQueue = await repository.leave(principal);
 
@@ -44,7 +58,7 @@ function createEntry(overrides: Partial<QueueEntry> = {}): QueueEntry {
     twitchUserId: "viewer-1",
     displayName: "QueueViewer",
     role: "dps",
-    note: JSON.stringify({ version: 1, realm: "Illidan", characterName: "Oldrun" }),
+    note: 'character:v1:["Illidan","Oldrun"]',
     status: "waiting",
     position: 1,
     joinedAt: timestamp,

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Check,
   CheckCircle2,
@@ -20,9 +22,13 @@ import {
   type QueueEntryDto,
   type QueueEntryStatus,
   type JoinQueueRequest,
+  type KeyIntent,
+  type MythicPlusDungeon,
   type NorthAmericanRealm,
   type QueueRole,
   type QueueStateDto,
+  getMythicPlusDungeonShortName,
+  mythicPlusDungeons,
   northAmericanRealms,
   queueEventSchema
 } from "@dungeon-list/shared";
@@ -70,6 +76,10 @@ export function App() {
   const [role, setRole] = useState<QueueRole>("dps");
   const [realm, setRealm] = useState<NorthAmericanRealm | "">("");
   const [characterName, setCharacterName] = useState("");
+  const [signupStep, setSignupStep] = useState<"character" | "key">("character");
+  const [keyIntent, setKeyIntent] = useState<KeyIntent>("need");
+  const [dungeon, setDungeon] = useState<MythicPlusDungeon | "">("");
+  const [keyLevel, setKeyLevel] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
@@ -90,7 +100,14 @@ export function App() {
     .slice(0, 4);
   const currentEntry = queue?.entries.find((entry) => entry.isCurrentViewer);
   const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
-  const canJoin = Boolean(queue?.viewer.isLinked && queue.signupsOpen && !currentEntry && hasCharacterDetails);
+  const normalizedKeyLevel = Number(keyLevel);
+  const hasKeyDetails = Boolean(
+    dungeon && Number.isInteger(normalizedKeyLevel) && normalizedKeyLevel >= 2 && normalizedKeyLevel <= 99
+  );
+  const canContinue = Boolean(
+    queue?.viewer.isLinked && queue.signupsOpen && !currentEntry && hasCharacterDetails
+  );
+  const canJoin = canContinue && hasKeyDetails;
 
   const applyActionQueue = useCallback((nextQueue: QueueStateDto) => {
     queueRequestGeneration.current += 1;
@@ -162,6 +179,12 @@ export function App() {
   }, [twitch.context.theme]);
 
   useEffect(() => {
+    if (currentEntry) {
+      setSignupStep("character");
+    }
+  }, [currentEntry?.id]);
+
+  useEffect(() => {
     return () => {
       if (copyResetTimer.current !== undefined) {
         window.clearTimeout(copyResetTimer.current);
@@ -183,7 +206,14 @@ export function App() {
 
   function submitJoin() {
     const normalizedCharacterName = characterName.trim();
-    if (!token || !helixToken || !realm || normalizedCharacterName.length < 2) {
+    if (
+      !token ||
+      !helixToken ||
+      !realm ||
+      !dungeon ||
+      normalizedCharacterName.length < 2 ||
+      !hasKeyDetails
+    ) {
       return;
     }
 
@@ -191,7 +221,10 @@ export function App() {
       const body: JoinQueueRequest = {
         role,
         realm,
-        characterName: normalizedCharacterName
+        characterName: normalizedCharacterName,
+        keyIntent,
+        dungeon,
+        keyLevel: normalizedKeyLevel
       };
       const response = await joinQueue(token, helixToken, body);
       applyActionQueue(response.queue);
@@ -309,54 +342,112 @@ export function App() {
             Leave queue
           </button>
         ) : (
-          <>
-            <div className="role-group" aria-label="Dungeon role">
-              {(["tank", "healer", "dps"] as QueueRole[]).map((nextRole) => (
-                <button
-                  key={nextRole}
-                  type="button"
-                  className={role === nextRole ? "selected" : undefined}
-                  onClick={() => setRole(nextRole)}
-                >
-                  {roleLabels[nextRole]}
+          signupStep === "character" ? (
+            <>
+              <div className="role-group" aria-label="Dungeon role">
+                {(["tank", "healer", "dps"] as QueueRole[]).map((nextRole) => (
+                  <button
+                    key={nextRole}
+                    type="button"
+                    className={role === nextRole ? "selected" : undefined}
+                    onClick={() => setRole(nextRole)}
+                  >
+                    {roleLabels[nextRole]}
+                  </button>
+                ))}
+              </div>
+              <div className="character-fields">
+                <label>
+                  <span>Server</span>
+                  <select
+                    value={realm}
+                    required
+                    onChange={(event) => setRealm(event.target.value as NorthAmericanRealm | "")}
+                  >
+                    <option value="">Select server</option>
+                    {northAmericanRealms.map((nextRealm) => (
+                      <option key={nextRealm} value={nextRealm}>
+                        {nextRealm}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Character</span>
+                  <input
+                    type="text"
+                    value={characterName}
+                    minLength={2}
+                    maxLength={12}
+                    placeholder="Character name"
+                    autoComplete="off"
+                    required
+                    onChange={(event) => setCharacterName(event.target.value)}
+                  />
+                </label>
+              </div>
+              <button type="button" disabled={!canContinue} onClick={() => setSignupStep("key")}>
+                Next
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="role-group key-intent-group" aria-label="Key preference">
+                {(["need", "offer"] as KeyIntent[]).map((nextIntent) => (
+                  <button
+                    key={nextIntent}
+                    type="button"
+                    className={keyIntent === nextIntent ? "selected" : undefined}
+                    onClick={() => setKeyIntent(nextIntent)}
+                  >
+                    {nextIntent === "need" ? "Need Key" : "Offer Key"}
+                  </button>
+                ))}
+              </div>
+              <div className="key-fields">
+                <label>
+                  <span>Dungeon</span>
+                  <select
+                    value={dungeon}
+                    required
+                    onChange={(event) => setDungeon(event.target.value as MythicPlusDungeon | "")}
+                  >
+                    <option value="">Select dungeon</option>
+                    {mythicPlusDungeons.map((nextDungeon) => (
+                      <option key={nextDungeon} value={nextDungeon}>
+                        {getMythicPlusDungeonShortName(nextDungeon)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Level</span>
+                  <input
+                    type="number"
+                    value={keyLevel}
+                    min={2}
+                    max={99}
+                    step={1}
+                    inputMode="numeric"
+                    placeholder="10"
+                    required
+                    onChange={(event) => setKeyLevel(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="signup-actions">
+                <button className="secondary-action" type="button" onClick={() => setSignupStep("character")}>
+                  <ArrowLeft size={16} />
+                  Back
                 </button>
-              ))}
-            </div>
-            <div className="character-fields">
-              <label>
-                <span>Server</span>
-                <select
-                  value={realm}
-                  required
-                  onChange={(event) => setRealm(event.target.value as NorthAmericanRealm | "")}
-                >
-                  <option value="">Select server</option>
-                  {northAmericanRealms.map((nextRealm) => (
-                    <option key={nextRealm} value={nextRealm}>
-                      {nextRealm}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Character</span>
-                <input
-                  type="text"
-                  value={characterName}
-                  minLength={2}
-                  maxLength={12}
-                  placeholder="Character name"
-                  autoComplete="off"
-                  required
-                  onChange={(event) => setCharacterName(event.target.value)}
-                />
-              </label>
-            </div>
-            <button type="button" disabled={!canJoin || busyAction === "join"} onClick={submitJoin}>
-              <LogIn size={16} />
-              Join queue
-            </button>
-          </>
+                <button type="button" disabled={!canJoin || busyAction === "join"} onClick={submitJoin}>
+                  <LogIn size={16} />
+                  Join queue
+                </button>
+              </div>
+            </>
+          )
         )}
       </section>
 
@@ -489,6 +580,10 @@ function QueueList({
 
 function EntrySummary({ entry, showRaiderIo }: { entry: QueueEntryDto; showRaiderIo: boolean }) {
   const label = entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
+  const keyDetails =
+    entry.keyIntent && entry.dungeon && entry.keyLevel !== null
+      ? `${entry.keyIntent === "need" ? "Needs" : "Offers"} ${getMythicPlusDungeonShortName(entry.dungeon)} +${entry.keyLevel}`
+      : undefined;
 
   return (
     <div className="entry-main">
@@ -510,6 +605,7 @@ function EntrySummary({ entry, showRaiderIo }: { entry: QueueEntryDto; showRaide
             ) : null}
           </div>
         ) : null}
+        {keyDetails ? <p title={keyDetails}>{keyDetails}</p> : null}
       </div>
     </div>
   );

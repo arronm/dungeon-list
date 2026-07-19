@@ -157,22 +157,27 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
     existing.role = input.role;
     existing.realm = input.realm;
     existing.characterName = input.characterName;
+    existing.keyIntent = input.keyIntent;
+    existing.dungeon = input.dungeon;
+    existing.keyLevel = input.keyLevel;
     existing.displayName = mockDisplayName;
     existing.status = "waiting";
     existing.updatedAt = now();
   } else {
-    entries.push(
-      createEntry(
-        `mock-${Date.now()}`,
-        viewer.userId,
-        mockDisplayName,
-        input.role,
-        input.characterName,
-        input.realm,
-        "waiting",
-        nextActivePosition()
-      )
+    const entry = createEntry(
+      `mock-${Date.now()}`,
+      viewer.userId,
+      mockDisplayName,
+      input.role,
+      input.characterName,
+      input.realm,
+      "waiting",
+      nextActivePosition()
     );
+    entry.keyIntent = input.keyIntent;
+    entry.dungeon = input.dungeon;
+    entry.keyLevel = input.keyLevel;
+    entries.push(entry);
   }
 
   touchQueue();
@@ -298,6 +303,9 @@ function createEntry(
     role,
     characterName,
     realm,
+    keyIntent: "offer",
+    dungeon: "Skyreach",
+    keyLevel: 10,
     status,
     position,
     joinedAt: timestamp,

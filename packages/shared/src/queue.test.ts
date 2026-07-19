@@ -5,22 +5,51 @@ import {
   moveEntryRequestSchema,
   setEntryStatusRequestSchema
 } from "./queue.js";
+import { getMythicPlusDungeonShortName, mythicPlusDungeons } from "./dungeons.js";
 
 describe("queue schemas", () => {
   it("accepts a current North American realm and trims the character name", () => {
-    expect(joinQueueRequestSchema.parse({ role: "tank", realm: "Area 52", characterName: "  Bulwark  " })).toEqual({
+    expect(
+      joinQueueRequestSchema.parse({
+        role: "tank",
+        realm: "Area 52",
+        characterName: "  Bulwark  ",
+        keyIntent: "need",
+        dungeon: "Skyreach",
+        keyLevel: 12
+      })
+    ).toEqual({
       role: "tank",
       realm: "Area 52",
-      characterName: "Bulwark"
+      characterName: "Bulwark",
+      keyIntent: "need",
+      dungeon: "Skyreach",
+      keyLevel: 12
     });
   });
 
   it("rejects unsupported roles, realms, and character names", () => {
-    const validCharacter = { realm: "Area 52", characterName: "Bulwark" };
+    const validCharacter = {
+      realm: "Area 52",
+      characterName: "Bulwark",
+      keyIntent: "offer",
+      dungeon: "Skyreach",
+      keyLevel: 10
+    };
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "bard" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Not A Realm", characterName: "Bulwark" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Area 52", characterName: "x" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ role: "dps", realm: "Area 52", characterName: "x".repeat(13) })).toThrow();
+    expect(() =>
+      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", realm: "Not A Realm" })
+    ).toThrow();
+    expect(() =>
+      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", characterName: "x" })
+    ).toThrow();
+    expect(() =>
+      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", characterName: "x".repeat(13) })
+    ).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyIntent: "maybe" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", dungeon: "Deadmines" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 1 })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 10.5 })).toThrow();
   });
 
   it("accepts only supported moderation transitions", () => {
@@ -33,5 +62,18 @@ describe("queue schemas", () => {
     expect(canModerateRole("viewer")).toBe(false);
     expect(canModerateRole("moderator")).toBe(true);
     expect(canModerateRole("broadcaster")).toBe(true);
+  });
+
+  it("provides a compact label for every current dungeon", () => {
+    expect(mythicPlusDungeons.map(getMythicPlusDungeonShortName)).toEqual([
+      "MT",
+      "Cavern",
+      "Xenas",
+      "Spire",
+      "AA",
+      "Pit",
+      "Seat",
+      "Sky"
+    ]);
   });
 });

@@ -212,25 +212,33 @@ h2 {
   margin-bottom: 8px;
 }
 
-.character-fields {
+.character-fields,
+.key-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
-.character-fields label {
+.key-fields {
+  grid-template-columns: minmax(0, 1fr) 76px;
+}
+
+.character-fields label,
+.key-fields label {
   display: grid;
   min-width: 0;
   gap: 4px;
 }
 
-.character-fields label span {
+.character-fields label span,
+.key-fields label span {
   color: rgba(246, 242, 234, 0.72);
   font-size: 11px;
   font-weight: 700;
 }
 
-:root[data-theme="light"] .character-fields label span {
+:root[data-theme="light"] .character-fields label span,
+:root[data-theme="light"] .key-fields label span {
   color: rgba(35, 31, 32, 0.68);
 }
 
@@ -248,6 +256,25 @@ h2 {
 .role-group button.selected {
   background: #f5c542;
   color: #18150a;
+}
+
+.key-intent-group {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.signup-actions {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(0, 2fr);
+  gap: 6px;
+}
+
+.secondary-action {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+:root[data-theme="light"] .secondary-action {
+  background: rgba(35, 31, 32, 0.09);
 }
 
 .danger,

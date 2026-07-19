@@ -81,6 +81,9 @@ export class QueueRepository {
         role: input.role,
         realm: input.realm,
         characterName: input.characterName,
+        keyIntent: input.keyIntent,
+        dungeon: input.dungeon,
+        keyLevel: input.keyLevel,
         hadExistingEntry: Boolean(existing)
       });
       const revision = await this.touchChannel(tx, principal.channelId);
@@ -345,6 +348,9 @@ export class QueueRepository {
           role: entry.role,
           realm: characterDetails.realm,
           characterName: characterDetails.characterName,
+          keyIntent: characterDetails.keyIntent,
+          dungeon: characterDetails.dungeon,
+          keyLevel: characterDetails.keyLevel,
           status: entry.status,
           position: entry.position,
           joinedAt: entry.joinedAt.toISOString(),

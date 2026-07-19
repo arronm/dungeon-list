@@ -6,17 +6,41 @@ describe("queue character details", () => {
     const stored = serializeCharacterDetails({
       role: "healer",
       realm: "Wyrmrest Accord",
-      characterName: "Lightwell"
+      characterName: "Lightwell",
+      keyIntent: "offer",
+      dungeon: "Skyreach",
+      keyLevel: 12
     });
 
     expect(parseCharacterDetails(stored)).toEqual({
       realm: "Wyrmrest Accord",
-      characterName: "Lightwell"
+      characterName: "Lightwell",
+      keyIntent: "offer",
+      dungeon: "Skyreach",
+      keyLevel: 12
+    });
+  });
+
+  it("reads v1 character data without inventing key details", () => {
+    expect(parseCharacterDetails('character:v1:["Illidan","Oldrun"]')).toEqual({
+      realm: "Illidan",
+      characterName: "Oldrun",
+      keyIntent: null,
+      dungeon: "",
+      keyLevel: null
     });
   });
 
   it("ignores legacy notes and malformed structured data", () => {
-    expect(parseCharacterDetails("Ready for anything.")).toEqual({ realm: "", characterName: "" });
-    expect(parseCharacterDetails("character:v1:not-json")).toEqual({ realm: "", characterName: "" });
+    const emptyDetails = {
+      realm: "",
+      characterName: "",
+      keyIntent: null,
+      dungeon: "",
+      keyLevel: null
+    };
+    expect(parseCharacterDetails("Ready for anything.")).toEqual(emptyDetails);
+    expect(parseCharacterDetails("character:v1:not-json")).toEqual(emptyDetails);
+    expect(parseCharacterDetails("character:v2:not-json")).toEqual(emptyDetails);
   });
 });

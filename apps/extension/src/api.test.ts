@@ -26,14 +26,24 @@ describe("extension API client", () => {
     await joinQueue("extension-jwt", "helix-jwt", {
       role: "tank",
       realm: "Area 52",
-      characterName: "Bulwark"
+      characterName: "Bulwark",
+      keyIntent: "offer",
+      dungeon: "Skyreach",
+      keyLevel: 12
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/queue/join",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ role: "tank", realm: "Area 52", characterName: "Bulwark" })
+        body: JSON.stringify({
+          role: "tank",
+          realm: "Area 52",
+          characterName: "Bulwark",
+          keyIntent: "offer",
+          dungeon: "Skyreach",
+          keyLevel: 12
+        })
       })
     );
   });

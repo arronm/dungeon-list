@@ -1,16 +1,21 @@
 import { z } from "zod";
+import { mythicPlusDungeons } from "./dungeons.js";
 import { northAmericanRealms } from "./realms.js";
 
 export const queueRoles = ["tank", "healer", "dps"] as const;
+export const keyIntents = ["need", "offer"] as const;
 export const queueEntryStatuses = ["waiting", "invited", "completed", "skipped"] as const;
 export const extensionRoles = ["viewer", "moderator", "broadcaster", "external"] as const;
 
 export const queueRoleSchema = z.enum(queueRoles);
+export const keyIntentSchema = z.enum(keyIntents);
 export const queueEntryStatusSchema = z.enum(queueEntryStatuses);
 export const extensionRoleSchema = z.enum(extensionRoles);
 export const northAmericanRealmSchema = z.enum(northAmericanRealms);
+export const mythicPlusDungeonSchema = z.enum(mythicPlusDungeons);
 
 export type QueueRole = z.infer<typeof queueRoleSchema>;
+export type KeyIntent = z.infer<typeof keyIntentSchema>;
 export type QueueEntryStatus = z.infer<typeof queueEntryStatusSchema>;
 export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
 
@@ -21,7 +26,14 @@ export const joinQueueRequestSchema = z.object({
     .string()
     .trim()
     .min(2, "Character name must be at least 2 characters.")
-    .max(12, "Character name must be 12 characters or fewer.")
+    .max(12, "Character name must be 12 characters or fewer."),
+  keyIntent: keyIntentSchema,
+  dungeon: mythicPlusDungeonSchema,
+  keyLevel: z
+    .number()
+    .int("Key level must be a whole number.")
+    .min(2, "Key level must be at least 2.")
+    .max(99, "Key level must be 99 or lower.")
 });
 
 export const setQueueSettingsRequestSchema = z.object({
@@ -69,6 +81,9 @@ export interface QueueEntryDto {
   role: QueueRole;
   realm: string;
   characterName: string;
+  keyIntent: KeyIntent | null;
+  dungeon: string;
+  keyLevel: number | null;
   status: QueueEntryStatus;
   position: number;
   joinedAt: string;
