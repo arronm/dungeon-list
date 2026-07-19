@@ -74,6 +74,10 @@ export interface QueueViewer {
   role: ExtensionRole;
   isLinked: boolean;
   canModerate: boolean;
+  signupDefaults?: {
+    realm: string;
+    characterName: string;
+  };
 }
 
 export interface RaiderIoSummary {

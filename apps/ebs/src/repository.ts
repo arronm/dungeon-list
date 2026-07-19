@@ -79,6 +79,7 @@ export class QueueRepository {
             }
           });
 
+      await this.saveSignupDefaults(tx, principal.channelId, twitchUserId, input);
       await this.writeEvent(tx, principal, "entry.joined", entry.id, {
         role: input.role,
         realm: input.realm,
@@ -116,6 +117,7 @@ export class QueueRepository {
         }
       });
 
+      await this.saveSignupDefaults(tx, principal.channelId, twitchUserId, input);
       await this.writeEvent(tx, principal, "offer.created", undefined, {
         offerId: offer.id,
         role: input.role,
@@ -377,13 +379,39 @@ export class QueueRepository {
     return channel.updatedAt.toISOString();
   }
 
+  private async saveSignupDefaults(
+    tx: TransactionClient,
+    channelId: string,
+    twitchUserId: string,
+    input: Pick<JoinQueueRequest | OfferKeyRequest, "realm" | "characterName">
+  ): Promise<void> {
+    await tx.viewerSignupPreference.upsert({
+      where: {
+        channelId_twitchUserId: {
+          channelId,
+          twitchUserId
+        }
+      },
+      update: {
+        realm: input.realm,
+        characterName: input.characterName
+      },
+      create: {
+        channelId,
+        twitchUserId,
+        realm: input.realm,
+        characterName: input.characterName
+      }
+    });
+  }
+
   private async getQueueStateInTransaction(
     tx: TransactionClient,
     principal: ExtensionPrincipal,
     revision: string
   ): Promise<QueueStateDto> {
     const channel = await this.ensureChannel(tx, principal.channelId);
-    const [entries, offers] = await Promise.all([
+    const [entries, offers, signupDefaults] = await Promise.all([
       tx.queueEntry.findMany({
         where: { channelId: principal.channelId },
         orderBy: [{ position: "asc" }, { joinedAt: "asc" }]
@@ -391,7 +419,17 @@ export class QueueRepository {
       tx.keyOffer.findMany({
         where: { channelId: principal.channelId },
         orderBy: [{ createdAt: "desc" }]
-      })
+      }),
+      principal.userId
+        ? tx.viewerSignupPreference.findUnique({
+            where: {
+              channelId_twitchUserId: {
+                channelId: principal.channelId,
+                twitchUserId: principal.userId
+              }
+            }
+          })
+        : Promise.resolve(null)
     ]);
 
     const viewer: QueueStateDto["viewer"] = {
@@ -403,6 +441,12 @@ export class QueueRepository {
 
     if (principal.userId) {
       viewer.userId = principal.userId;
+    }
+    if (signupDefaults) {
+      viewer.signupDefaults = {
+        realm: signupDefaults.realm,
+        characterName: signupDefaults.characterName
+      };
     }
 
     return {

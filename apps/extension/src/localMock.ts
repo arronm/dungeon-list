@@ -25,6 +25,10 @@ const mockDisplayName = "Local Tester";
 let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
 let signupsOpen = true;
+let signupDefaults: NonNullable<QueueStateDto["viewer"]["signupDefaults"]> = {
+  realm: "Maelstrom",
+  characterName: "Taz"
+};
 let entries: QueueEntryDto[] = [
   createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Bulwark", "Area 52", "waiting", 1, 2847),
   createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2, 2312),
@@ -157,6 +161,11 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
     throw new Error("The waitlist is currently closed.");
   }
 
+  signupDefaults = {
+    realm: input.realm,
+    characterName: input.characterName
+  };
+
   const existing = entries.find(
     (entry) => entry.twitchUserId === viewer.userId && entry.status !== "completed"
   );
@@ -214,6 +223,11 @@ export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: Queu
   if (!signupsOpen && !viewer.canModerate) {
     throw new Error("Key submissions are currently closed.");
   }
+
+  signupDefaults = {
+    realm: input.realm,
+    characterName: input.characterName
+  };
 
   offers.unshift(
     createOffer(
@@ -321,6 +335,7 @@ function getQueueState(): QueueStateDto {
 
   if (mockLinked) {
     viewer.userId = mockViewerUserId;
+    viewer.signupDefaults = { ...signupDefaults };
   }
 
   return {

@@ -41,11 +41,19 @@ describe("QueueRepository completed history", () => {
       dungeon: "Skyreach",
       keyLevel: 12
     });
+    expect(joinedQueue.viewer.signupDefaults).toEqual({
+      realm: "Area 52",
+      characterName: "Bulwark"
+    });
 
     const leftQueue = await repository.leave(principal);
 
     expect(leftQueue.entries).toHaveLength(1);
     expect(leftQueue.entries[0]).toMatchObject({ id: "completed-1", status: "completed", isCurrentViewer: false });
+    expect(leftQueue.viewer.signupDefaults).toEqual({
+      realm: "Area 52",
+      characterName: "Bulwark"
+    });
     expect(database.entries()).toHaveLength(1);
   });
 });
@@ -83,11 +91,19 @@ describe("QueueRepository key offers", () => {
     expect(offeredKeys.entries).toHaveLength(0);
     expect(offeredKeys.offers).toHaveLength(2);
     expect(offeredKeys.offers.map((offer) => offer.characterName)).toEqual(["Fastcast", "Wallbuilder"]);
+    expect(offeredKeys.viewer.signupDefaults).toEqual({
+      realm: "Illidan",
+      characterName: "Fastcast"
+    });
 
     const remaining = await repository.removeOffer(principal, offeredKeys.offers[0]!.id);
 
     expect(remaining.offers).toHaveLength(1);
     expect(remaining.offers[0]?.characterName).toBe("Wallbuilder");
+    expect(remaining.viewer.signupDefaults).toEqual({
+      realm: "Illidan",
+      characterName: "Fastcast"
+    });
     expect(database.offers()).toHaveLength(1);
   });
 });
@@ -127,6 +143,13 @@ function createOffer(overrides: Partial<KeyOffer> = {}): KeyOffer {
 function createTestDatabase(initialEntries: QueueEntry[]) {
   let entries = [...initialEntries];
   let offers: KeyOffer[] = [];
+  let signupPreference: {
+    channelId: string;
+    twitchUserId: string;
+    realm: string;
+    characterName: string;
+    updatedAt: Date;
+  } | null = null;
   let revision = 0;
   const channel = {
     id: "channel-1",
@@ -214,6 +237,25 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     })
   };
 
+  const viewerSignupPreference = {
+    upsert: vi.fn(async ({ update, create }: any) => {
+      signupPreference = signupPreference
+        ? { ...signupPreference, ...update, updatedAt: nextTimestamp() }
+        : { ...create, updatedAt: nextTimestamp() };
+      return signupPreference;
+    }),
+    findUnique: vi.fn(async ({ where }: any) => {
+      const identity = where.channelId_twitchUserId;
+      if (
+        signupPreference?.channelId === identity.channelId &&
+        signupPreference.twitchUserId === identity.twitchUserId
+      ) {
+        return signupPreference;
+      }
+      return null;
+    })
+  };
+
   const transaction = {
     channel: {
       upsert: vi.fn(async () => channel),
@@ -224,6 +266,7 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     },
     queueEntry,
     keyOffer,
+    viewerSignupPreference,
     queueEvent: {
       create: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 }))
@@ -244,6 +287,7 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
   return {
     prisma,
     entries: () => entries,
-    offers: () => offers
+    offers: () => offers,
+    signupPreference: () => signupPreference
   };
 }

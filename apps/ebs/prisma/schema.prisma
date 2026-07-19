@@ -21,13 +21,14 @@ enum QueueEntryStatus {
 }
 
 model Channel {
-  id          String       @id @map("twitch_channel_id")
-  signupsOpen Boolean     @default(true) @map("signups_open")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  entries     QueueEntry[]
-  offers      KeyOffer[]
-  events      QueueEvent[]
+  id                String                   @id @map("twitch_channel_id")
+  signupsOpen       Boolean                  @default(true) @map("signups_open")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  entries           QueueEntry[]
+  offers            KeyOffer[]
+  signupPreferences ViewerSignupPreference[]
+  events            QueueEvent[]
 
   @@map("channels")
 }
@@ -65,6 +66,18 @@ model KeyOffer {
   @@index([channelId, createdAt])
   @@index([channelId, twitchUserId])
   @@map("key_offers")
+}
+
+model ViewerSignupPreference {
+  channelId     String   @map("channel_id")
+  twitchUserId  String   @map("twitch_user_id")
+  realm         String
+  characterName String   @map("character_name")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  channel       Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, twitchUserId])
+  @@map("viewer_signup_preferences")
 }
 
 model QueueEvent {

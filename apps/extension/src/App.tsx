@@ -91,6 +91,7 @@ export function App() {
   const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
   const queueRequestGeneration = useRef(0);
   const copyResetTimer = useRef<number | undefined>();
+  const hydratedDefaultsForViewer = useRef<string | undefined>();
 
   const sortedEntries = useMemo(() => {
     return [...(queue?.entries ?? [])].sort((a, b) => {
@@ -184,6 +185,25 @@ export function App() {
   }, [twitch.context.theme]);
 
   useEffect(() => {
+    const userId = queue?.viewer.userId;
+    const defaults = queue?.viewer.signupDefaults;
+    if (!queue || !userId || !defaults) {
+      return;
+    }
+
+    const viewerKey = `${queue.channelId}:${userId}`;
+    if (hydratedDefaultsForViewer.current === viewerKey) {
+      return;
+    }
+
+    if (isNorthAmericanRealm(defaults.realm)) {
+      setRealm(defaults.realm);
+    }
+    setCharacterName(defaults.characterName);
+    hydratedDefaultsForViewer.current = viewerKey;
+  }, [queue?.channelId, queue?.viewer.signupDefaults, queue?.viewer.userId]);
+
+  useEffect(() => {
     if (currentEntry) {
       setSignupStep("character");
     }
@@ -239,7 +259,6 @@ export function App() {
 
       if (keyIntent === "offer") {
         setSignupStep("character");
-        setCharacterName("");
         setDungeon("");
         setKeyLevel("");
       } else {
@@ -824,4 +843,8 @@ async function copyToClipboard(value: string): Promise<void> {
   if (!copied) {
     throw new Error("Clipboard write failed.");
   }
+}
+
+function isNorthAmericanRealm(value: string): value is NorthAmericanRealm {
+  return (northAmericanRealms as readonly string[]).includes(value);
 }

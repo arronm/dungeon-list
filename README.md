@@ -31,4 +31,6 @@ Broadcasters and moderators also receive current Mythic+ scores from Raider.IO. 
 
 Viewers who need a key create one active queue entry. Key offers are stored separately, so a viewer can advertise multiple characters and remove each offer independently.
 
+The latest submitted character and realm are saved per viewer and channel, then used as editable defaults the next time the signup form loads.
+
 The current Mythic+ dungeon rotation and its compact UI labels are maintained in `packages/shared/src/dungeons.ts` and should be updated when the seasonal pool changes.
