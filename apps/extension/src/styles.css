@@ -161,6 +161,10 @@ h2 {
   gap: 6px;
 }
 
+.leave-label-compact {
+  display: none;
+}
+
 .icon-button,
 .moderation button,
 .offer-actions button {
@@ -503,6 +507,110 @@ h2 {
 @media (max-width: 380px) {
   .character-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 220px) {
+  .shell {
+    padding: 8px;
+  }
+
+  .topbar {
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    overflow: hidden;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  h2 {
+    margin-top: 8px;
+    font-size: 11px;
+  }
+
+  .topbar p,
+  .muted,
+  .empty,
+  .identity-panel p {
+    font-size: 11px;
+  }
+
+  .refresh-button {
+    display: none;
+  }
+
+  .leave-label-full {
+    display: none;
+  }
+
+  .leave-label-compact {
+    display: inline;
+  }
+
+  .character-fields,
+  .key-fields,
+  .signup-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .role-group {
+    gap: 4px;
+  }
+
+  .role-group button,
+  .view-tabs button {
+    min-height: 32px;
+    font-size: 11px;
+  }
+
+  .identity-panel {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .identity-panel button {
+    grid-column: 1 / -1;
+  }
+
+  .my-spot {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .queue-list {
+    gap: 4px;
+  }
+
+  .entry {
+    padding: 6px;
+  }
+
+  .entry-main {
+    gap: 6px;
+  }
+
+  .position {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .entry-line strong {
+    font-size: 13px;
+  }
+
+  .entry-line .badge,
+  .entry-line .status,
+  .entry-copy .character-line,
+  .entry-copy > p,
+  .moderation,
+  .offer-actions {
+    display: none;
   }
 }
 

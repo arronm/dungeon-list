@@ -373,7 +373,7 @@ export function App() {
             </button>
           ) : null}
           <button
-            className="icon-button"
+            className="icon-button refresh-button"
             type="button"
             title="Refresh queue"
             disabled={busyAction === "refresh"}
@@ -402,9 +402,18 @@ export function App() {
 
       <section className="signup">
         {currentEntry ? (
-          <button className="danger" type="button" disabled={busyAction === "leave"} onClick={submitLeave}>
+          <button
+            className="danger"
+            type="button"
+            aria-label="Leave queue"
+            disabled={busyAction === "leave"}
+            onClick={submitLeave}
+          >
             <LogOut size={16} />
-            Leave queue
+            <span className="leave-label-full">Leave queue</span>
+            <span className="leave-label-compact" aria-hidden="true">
+              Leave
+            </span>
           </button>
         ) : (
           signupStep === "character" ? (
