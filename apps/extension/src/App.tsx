@@ -20,12 +20,13 @@ import {
   Unlock
 } from "lucide-react";
 import {
+  anyMythicPlusDungeon,
   type QueueEntryDto,
   type QueueEntryStatus,
   type JoinQueueRequest,
   type KeyIntent,
+  type KeyRequestDungeon,
   type KeyOfferDto,
-  type MythicPlusDungeon,
   type NorthAmericanRealm,
   type OfferKeyRequest,
   type QueueRole,
@@ -83,8 +84,8 @@ export function App() {
   const [characterName, setCharacterName] = useState("");
   const [signupStep, setSignupStep] = useState<"character" | "key">("character");
   const [keyIntent, setKeyIntent] = useState<KeyIntent>("need");
-  const [dungeon, setDungeon] = useState<MythicPlusDungeon | "">("");
-  const [keyLevel, setKeyLevel] = useState("");
+  const [dungeon, setDungeon] = useState<KeyRequestDungeon | "">(anyMythicPlusDungeon);
+  const [keyLevel, setKeyLevel] = useState("10");
   const [listView, setListView] = useState<"queue" | "offers">("queue");
   const [error, setError] = useState<string | undefined>();
   const [busyAction, setBusyAction] = useState<string | undefined>();
@@ -108,8 +109,12 @@ export function App() {
   const currentEntry = queue?.entries.find((entry) => entry.isCurrentViewer);
   const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
   const normalizedKeyLevel = Number(keyLevel);
+  const specificDungeon = mythicPlusDungeons.find((candidate) => candidate === dungeon);
   const hasKeyDetails = Boolean(
-    dungeon && Number.isInteger(normalizedKeyLevel) && normalizedKeyLevel >= 2 && normalizedKeyLevel <= 99
+    (keyIntent === "need" ? dungeon : specificDungeon) &&
+      Number.isInteger(normalizedKeyLevel) &&
+      normalizedKeyLevel >= 2 &&
+      normalizedKeyLevel <= 99
   );
   const canUseIntent = keyIntent === "offer" || !currentEntry;
   const canContinue = Boolean(queue?.viewer.isLinked && queue.signupsOpen && canUseIntent && hasCharacterDetails);
@@ -236,6 +241,7 @@ export function App() {
       !helixToken ||
       !realm ||
       !dungeon ||
+      (keyIntent === "offer" && !specificDungeon) ||
       normalizedCharacterName.length < 2 ||
       !hasKeyDetails
     ) {
@@ -247,20 +253,27 @@ export function App() {
         role,
         realm,
         characterName: normalizedCharacterName,
-        dungeon,
         keyLevel: normalizedKeyLevel
       };
 
       const response =
         keyIntent === "need"
-          ? await joinQueue(token, helixToken, { ...details, keyIntent: "need" } satisfies JoinQueueRequest)
-          : await offerKey(token, helixToken, { ...details, keyIntent: "offer" } satisfies OfferKeyRequest);
+          ? await joinQueue(
+              token,
+              helixToken,
+              { ...details, keyIntent: "need", dungeon } satisfies JoinQueueRequest
+            )
+          : await offerKey(
+              token,
+              helixToken,
+              { ...details, keyIntent: "offer", dungeon: specificDungeon! } satisfies OfferKeyRequest
+            );
       applyActionQueue(response.queue);
 
       if (keyIntent === "offer") {
         setSignupStep("character");
         setDungeon("");
-        setKeyLevel("");
+        setKeyLevel("10");
       } else {
         setListView("queue");
       }
@@ -269,6 +282,18 @@ export function App() {
 
   function selectListView(view: "queue" | "offers") {
     setListView(view);
+  }
+
+  function selectKeyIntent(intent: KeyIntent) {
+    setKeyIntent(intent);
+    if (intent === "offer" && dungeon === anyMythicPlusDungeon) {
+      setDungeon("");
+    } else if (intent === "need" && !dungeon) {
+      setDungeon(anyMythicPlusDungeon);
+    }
+    if (!keyLevel) {
+      setKeyLevel("10");
+    }
   }
 
   function submitLeave() {
@@ -439,7 +464,7 @@ export function App() {
                     key={nextIntent}
                     type="button"
                     className={keyIntent === nextIntent ? "selected" : undefined}
-                    onClick={() => setKeyIntent(nextIntent)}
+                    onClick={() => selectKeyIntent(nextIntent)}
                   >
                     {nextIntent === "need" ? "Need Key" : "Offer Key"}
                   </button>
@@ -451,9 +476,13 @@ export function App() {
                   <select
                     value={dungeon}
                     required
-                    onChange={(event) => setDungeon(event.target.value as MythicPlusDungeon | "")}
+                    onChange={(event) => setDungeon(event.target.value as KeyRequestDungeon | "")}
                   >
-                    <option value="">Select dungeon</option>
+                    {keyIntent === "need" ? (
+                      <option value={anyMythicPlusDungeon}>{anyMythicPlusDungeon}</option>
+                    ) : (
+                      <option value="">Select dungeon</option>
+                    )}
                     {mythicPlusDungeons.map((nextDungeon) => (
                       <option key={nextDungeon} value={nextDungeon}>
                         {getMythicPlusDungeonShortName(nextDungeon)}

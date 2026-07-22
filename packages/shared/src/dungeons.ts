@@ -10,7 +10,10 @@ export const mythicPlusDungeons = [
   "Skyreach"
 ] as const;
 
+export const anyMythicPlusDungeon = "Any" as const;
+
 export type MythicPlusDungeon = (typeof mythicPlusDungeons)[number];
+export type KeyRequestDungeon = MythicPlusDungeon | typeof anyMythicPlusDungeon;
 
 export const mythicPlusDungeonShortNames: Record<MythicPlusDungeon, string> = {
   "Magisters' Terrace": "MT",

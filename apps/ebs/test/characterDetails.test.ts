@@ -21,6 +21,23 @@ describe("queue character details", () => {
     });
   });
 
+  it("round trips a request for any dungeon", () => {
+    const stored = serializeCharacterDetails({
+      role: "dps",
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      keyIntent: "need",
+      dungeon: "Any",
+      keyLevel: 10
+    });
+
+    expect(parseCharacterDetails(stored)).toMatchObject({
+      keyIntent: "need",
+      dungeon: "Any",
+      keyLevel: 10
+    });
+  });
+
   it("reads v1 character data without inventing key details", () => {
     expect(parseCharacterDetails('character:v1:["Illidan","Oldrun"]')).toEqual({
       realm: "Illidan",

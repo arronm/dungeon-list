@@ -68,6 +68,19 @@ describe("queue schemas", () => {
     expect(() => offerKeyRequestSchema.parse({ ...signup, keyIntent: "need" })).toThrow();
   });
 
+  it("allows any dungeon for requests but requires a specific offered key", () => {
+    const signup = {
+      role: "dps",
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      dungeon: "Any",
+      keyLevel: 10
+    };
+
+    expect(joinQueueRequestSchema.parse({ ...signup, keyIntent: "need" }).dungeon).toBe("Any");
+    expect(() => offerKeyRequestSchema.parse({ ...signup, keyIntent: "offer" })).toThrow();
+  });
+
   it("accepts only supported moderation transitions", () => {
     expect(setEntryStatusRequestSchema.parse({ status: "invited" }).status).toBe("invited");
     expect(moveEntryRequestSchema.parse({ direction: "up" }).direction).toBe("up");

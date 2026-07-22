@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { mythicPlusDungeons } from "./dungeons.js";
+import { anyMythicPlusDungeon, mythicPlusDungeons } from "./dungeons.js";
 import { northAmericanRealms } from "./realms.js";
 
 export const queueRoles = ["tank", "healer", "dps"] as const;
@@ -27,7 +27,6 @@ const signupDetailsSchema = z.object({
     .trim()
     .min(2, "Character name must be at least 2 characters.")
     .max(12, "Character name must be 12 characters or fewer."),
-  dungeon: mythicPlusDungeonSchema,
   keyLevel: z
     .number()
     .int("Key level must be a whole number.")
@@ -36,11 +35,13 @@ const signupDetailsSchema = z.object({
 });
 
 export const joinQueueRequestSchema = signupDetailsSchema.extend({
-  keyIntent: z.literal("need")
+  keyIntent: z.literal("need"),
+  dungeon: z.union([z.literal(anyMythicPlusDungeon), mythicPlusDungeonSchema])
 });
 
 export const offerKeyRequestSchema = signupDetailsSchema.extend({
-  keyIntent: z.literal("offer")
+  keyIntent: z.literal("offer"),
+  dungeon: mythicPlusDungeonSchema
 });
 
 export const setQueueSettingsRequestSchema = z.object({
