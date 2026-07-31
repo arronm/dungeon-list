@@ -715,7 +715,7 @@ export function App() {
           />
 
           {completedEntries.length ? (
-            <section className="completed">
+            <section className="completed-list">
               <h2>Completed</h2>
               {completedEntries.map((entry) => (
                 <EntrySummary key={entry.id} entry={entry} showRaiderIo={Boolean(queue?.viewer.canModerate)} />
