@@ -20,7 +20,7 @@ describe("QueueRepository completed history", () => {
     const joinedQueue = await repository.join(
       principal,
       {
-        role: "tank",
+        roles: ["tank", "dps"],
         realm: "Area 52",
         characterName: "Bulwark",
         keyIntent: "need",
@@ -31,10 +31,16 @@ describe("QueueRepository completed history", () => {
     );
 
     expect(joinedQueue.entries).toHaveLength(2);
-    expect(joinedQueue.entries.find((entry) => entry.id === "completed-1")?.isCurrentViewer).toBe(false);
+    expect(joinedQueue.entries.find((entry) => entry.id === "completed-1")).toMatchObject({
+      role: "dps",
+      roles: ["dps"],
+      isCurrentViewer: false
+    });
     const activeEntry = joinedQueue.entries.find((entry) => entry.status !== "completed");
     expect(activeEntry).toMatchObject({
       twitchUserId: "viewer-1",
+      role: "tank",
+      roles: ["tank", "dps"],
       isCurrentViewer: true,
       position: 1,
       keyIntent: "need",
@@ -66,7 +72,7 @@ describe("QueueRepository key offers", () => {
     await repository.offerKey(
       principal,
       {
-        role: "tank",
+        roles: ["tank", "dps"],
         realm: "Area 52",
         characterName: "Wallbuilder",
         keyIntent: "offer",
@@ -78,7 +84,7 @@ describe("QueueRepository key offers", () => {
     const offeredKeys = await repository.offerKey(
       principal,
       {
-        role: "dps",
+        roles: ["healer", "dps"],
         realm: "Illidan",
         characterName: "Fastcast",
         keyIntent: "offer",
@@ -114,7 +120,7 @@ describe("QueueRepository key offers", () => {
     const original = await repository.offerKey(
       principal,
       {
-        role: "tank",
+        roles: ["tank"],
         realm: "Area 52",
         characterName: "Wallbuilder",
         keyIntent: "offer",
@@ -126,7 +132,7 @@ describe("QueueRepository key offers", () => {
     const replacement = await repository.offerKey(
       principal,
       {
-        role: "dps",
+        roles: ["healer", "dps"],
         realm: "Area 52",
         characterName: "wallBUILDER",
         keyIntent: "offer",
@@ -139,7 +145,8 @@ describe("QueueRepository key offers", () => {
     expect(replacement.offers).toHaveLength(1);
     expect(replacement.offers[0]).toMatchObject({
       characterName: "wallBUILDER",
-      role: "dps",
+      role: "healer",
+      roles: ["healer", "dps"],
       dungeon: "Skyreach",
       keyLevel: 15
     });
@@ -151,7 +158,7 @@ describe("QueueRepository key offers", () => {
     const database = createTestDatabase([]);
     const repository = new QueueRepository(database.prisma);
     const input = {
-      role: "dps" as const,
+      roles: ["dps"] as ("dps")[],
       characterName: "Keyrunner",
       keyIntent: "offer" as const,
       dungeon: "Skyreach" as const,

@@ -71,7 +71,7 @@ export function joinQueue(token: string, helixToken: string, body: JoinQueueRequ
   return request<QueueStateResponse>("/api/queue/join", token, {
     method: "POST",
     headers: { "X-Twitch-Helix-Token": helixToken },
-    body: JSON.stringify(body)
+    body: JSON.stringify(withLegacyPrimaryRole(body))
   });
 }
 
@@ -97,7 +97,7 @@ export function offerKey(
   return request<QueueStateResponse>("/api/offers", token, {
     method: "POST",
     headers: { "X-Twitch-Helix-Token": helixToken },
-    body: JSON.stringify(body)
+    body: JSON.stringify(withLegacyPrimaryRole(body))
   });
 }
 
@@ -170,4 +170,11 @@ export function updateQueueSettings(token: string, body: SetQueueSettingsRequest
 
 function shouldUseLocalMock(token: string): boolean {
   return isLocalMockRuntime() && token.startsWith("local-dev-token:");
+}
+
+function withLegacyPrimaryRole<T extends JoinQueueRequest | OfferKeyRequest>(body: T) {
+  return {
+    ...body,
+    role: body.roles[0]
+  };
 }

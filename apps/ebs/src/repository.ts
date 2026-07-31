@@ -7,6 +7,7 @@ import {
   type MoveEntryRequest,
   type OfferKeyRequest,
   type QueueEntryDto,
+  type QueueRole,
   type QueueEntryStatus,
   type QueueStateDto,
   type SetQueueSettingsRequest
@@ -61,7 +62,7 @@ export class QueueRepository {
         ? await tx.queueEntry.update({
             where: { id: existing.id },
             data: {
-              role: input.role,
+              role: getPrimaryRole(input.roles),
               note: characterDetails,
               displayName,
               status: "waiting",
@@ -73,7 +74,7 @@ export class QueueRepository {
               channelId: principal.channelId,
               twitchUserId,
               displayName,
-              role: input.role,
+              role: getPrimaryRole(input.roles),
               note: characterDetails,
               status: "waiting",
               position
@@ -82,7 +83,8 @@ export class QueueRepository {
 
       await this.saveSignupDefaults(tx, principal.channelId, twitchUserId, input);
       await this.writeEvent(tx, principal, "entry.joined", entry.id, {
-        role: input.role,
+        role: getPrimaryRole(input.roles),
+        roles: input.roles,
         realm: input.realm,
         characterName: input.characterName,
         keyIntent: input.keyIntent,
@@ -132,7 +134,7 @@ export class QueueRepository {
           channelId: principal.channelId,
           twitchUserId,
           displayName: verifiedDisplayName || null,
-          role: input.role,
+          role: getPrimaryRole(input.roles),
           note: serializeCharacterDetails(input)
         }
       });
@@ -140,7 +142,8 @@ export class QueueRepository {
       await this.saveSignupDefaults(tx, principal.channelId, twitchUserId, input);
       await this.writeEvent(tx, principal, "offer.created", undefined, {
         offerId: offer.id,
-        role: input.role,
+        role: getPrimaryRole(input.roles),
+        roles: input.roles,
         realm: input.realm,
         characterName: input.characterName,
         dungeon: input.dungeon,
@@ -506,6 +509,7 @@ export class QueueRepository {
           twitchUserId: entry.twitchUserId,
           displayName: entry.displayName,
           role: entry.role,
+          roles: characterDetails.roles.length ? characterDetails.roles : [entry.role],
           realm: characterDetails.realm,
           characterName: characterDetails.characterName,
           keyIntent: characterDetails.keyIntent,
@@ -525,6 +529,7 @@ export class QueueRepository {
           twitchUserId: offer.twitchUserId,
           displayName: offer.displayName,
           role: offer.role,
+          roles: characterDetails.roles.length ? characterDetails.roles : [offer.role],
           realm: characterDetails.realm,
           characterName: characterDetails.characterName,
           keyIntent: "offer",
@@ -537,4 +542,8 @@ export class QueueRepository {
       })
     };
   }
+}
+
+function getPrimaryRole(roles: QueueRole[]): QueueRole {
+  return roles[0] ?? "dps";
 }

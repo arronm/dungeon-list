@@ -35,6 +35,7 @@ import {
   getMythicPlusDungeonShortName,
   mythicPlusDungeons,
   northAmericanRealms,
+  queueRoles,
   queueEventSchema
 } from "@dungeon-list/shared";
 import {
@@ -81,7 +82,7 @@ export function App() {
   const token = twitch.authorization?.token;
   const helixToken = twitch.authorization?.helixToken;
   const [queue, setQueue] = useState<QueueStateDto | undefined>();
-  const [role, setRole] = useState<QueueRole>("dps");
+  const [roles, setRoles] = useState<QueueRole[]>(["dps"]);
   const [realm, setRealm] = useState<NorthAmericanRealm | "">("");
   const [characterName, setCharacterName] = useState("");
   const [signupStep, setSignupStep] = useState<"character" | "key">("character");
@@ -130,7 +131,13 @@ export function App() {
       normalizedKeyLevel <= 99
   );
   const canUseIntent = keyIntent === "offer" || !currentEntry;
-  const canContinue = Boolean(queue?.viewer.isLinked && queue.signupsOpen && canUseIntent && hasCharacterDetails);
+  const canContinue = Boolean(
+    queue?.viewer.isLinked &&
+      queue.signupsOpen &&
+      canUseIntent &&
+      roles.length &&
+      hasCharacterDetails
+  );
   const canJoin = canContinue && hasKeyDetails;
 
   const applyActionQueue = useCallback((nextQueue: QueueStateDto) => {
@@ -263,7 +270,7 @@ export function App() {
 
     void runAction(keyIntent === "need" ? "join" : "offer", async () => {
       const details = {
-        role,
+        roles,
         realm,
         characterName: normalizedCharacterName,
         keyLevel: normalizedKeyLevel
@@ -307,6 +314,18 @@ export function App() {
     if (!keyLevel) {
       setKeyLevel("10");
     }
+  }
+
+  function toggleRole(nextRole: QueueRole) {
+    setRoles((currentRoles) => {
+      const selectedRoles = new Set(currentRoles);
+      if (selectedRoles.has(nextRole)) {
+        selectedRoles.delete(nextRole);
+      } else {
+        selectedRoles.add(nextRole);
+      }
+      return queueRoles.filter((candidate) => selectedRoles.has(candidate));
+    });
   }
 
   function submitLeave() {
@@ -505,16 +524,19 @@ export function App() {
         ) : (
           signupStep === "character" ? (
             <>
-              <div className="role-group" aria-label="Dungeon role">
-                {(["tank", "healer", "dps"] as QueueRole[]).map((nextRole) => (
-                  <button
+              <div className="role-group" role="group" aria-label="Dungeon roles">
+                {queueRoles.map((nextRole) => (
+                  <label
                     key={nextRole}
-                    type="button"
-                    className={role === nextRole ? "selected" : undefined}
-                    onClick={() => setRole(nextRole)}
+                    className={`role-checkbox ${roles.includes(nextRole) ? "selected" : ""}`}
                   >
+                    <input
+                      type="checkbox"
+                      checked={roles.includes(nextRole)}
+                      onChange={() => toggleRole(nextRole)}
+                    />
                     {roleLabels[nextRole]}
-                  </button>
+                  </label>
                 ))}
               </div>
               <div className="character-fields">
@@ -800,7 +822,7 @@ function OfferList({
               <div className="entry-copy">
                 <div className="entry-line">
                   <strong title={label}>{label}</strong>
-                  <span className={`badge ${offer.role}`}>{roleLabels[offer.role]}</span>
+                  <RoleBadges entry={offer} />
                 </div>
                 <div className="character-line">
                   <p title={`${offer.characterName}${offer.realm ? ` - ${offer.realm}` : ""}`}>
@@ -975,7 +997,7 @@ function EntrySummary({
           ) : (
             <strong title={label}>{label}</strong>
           )}
-          <span className={`badge ${entry.role}`}>{roleLabels[entry.role]}</span>
+          <RoleBadges entry={entry} />
           <span className={`status ${entry.status}`}>{statusLabels[entry.status]}</span>
         </div>
         {entry.characterName || entry.realm ? (
@@ -997,6 +1019,23 @@ function EntrySummary({
 
 function getViewerLabel(entry: Pick<QueueEntryDto, "displayName" | "twitchUserId">): string {
   return entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
+}
+
+function RoleBadges({
+  entry
+}: {
+  entry: Pick<QueueEntryDto, "role" | "roles"> | Pick<KeyOfferDto, "role" | "roles">;
+}) {
+  const roles = entry.roles?.length ? entry.roles : [entry.role];
+  return (
+    <span className="role-badges" aria-label={`Roles: ${roles.map((role) => roleLabels[role]).join(", ")}`}>
+      {roles.map((role) => (
+        <span key={role} className={`badge ${role}`}>
+          {roleLabels[role]}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function formatKeyNeed(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): string {

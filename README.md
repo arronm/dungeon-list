@@ -29,7 +29,7 @@ The extension frontend expects `VITE_EBS_BASE_URL` to point at the public HTTPS 
 
 Broadcasters and moderators also receive current Mythic+ scores from Raider.IO. Lookups run through the EBS, are cached in memory for two hours, and degrade without blocking queue operations when Raider.IO is unavailable.
 
-Viewers who need a key create one active queue entry. Key offers are stored separately, so a viewer can advertise multiple characters and remove each offer independently.
+Viewers who need a key create one active queue entry and can select every role they can play. Key offers are stored separately, so a viewer can advertise multiple characters and remove each offer independently.
 
 Broadcasters and moderators can open a viewer from the queue to see their request, queue controls, and available keys at the exact requested level and dungeon. Requests for `Any` dungeon match every offered key at that level.
 

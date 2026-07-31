@@ -24,7 +24,7 @@ describe("extension API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await joinQueue("extension-jwt", "helix-jwt", {
-      role: "tank",
+      roles: ["tank", "dps"],
       realm: "Area 52",
       characterName: "Bulwark",
       keyIntent: "need",
@@ -32,20 +32,18 @@ describe("extension API client", () => {
       keyLevel: 12
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/queue/join",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          role: "tank",
-          realm: "Area 52",
-          characterName: "Bulwark",
-          keyIntent: "need",
-          dungeon: "Skyreach",
-          keyLevel: 12
-        })
-      })
-    );
+    const [requestPath, init] = fetchMock.mock.calls[0]!;
+    expect(requestPath).toBe("/api/queue/join");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      roles: ["tank", "dps"],
+      role: "tank",
+      realm: "Area 52",
+      characterName: "Bulwark",
+      keyIntent: "need",
+      dungeon: "Skyreach",
+      keyLevel: 12
+    });
   });
 
   it("submits key offers separately with the Helix JWT", async () => {
@@ -53,7 +51,7 @@ describe("extension API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await offerKey("extension-jwt", "helix-jwt", {
-      role: "dps",
+      roles: ["healer", "dps"],
       realm: "Area 52",
       characterName: "Keyrunner",
       keyIntent: "offer",
@@ -61,11 +59,18 @@ describe("extension API client", () => {
       keyLevel: 12
     });
 
-    const [, init] = fetchMock.mock.calls[0]!;
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/offers",
-      expect.objectContaining({ method: "POST" })
-    );
+    const [requestPath, init] = fetchMock.mock.calls[0]!;
+    expect(requestPath).toBe("/api/offers");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      roles: ["healer", "dps"],
+      role: "healer",
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      keyIntent: "offer",
+      dungeon: "Windrunner Spire",
+      keyLevel: 12
+    });
     expect(new Headers(init?.headers).get("X-Twitch-Helix-Token")).toBe("helix-jwt");
   });
 

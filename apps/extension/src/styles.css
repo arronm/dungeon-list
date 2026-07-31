@@ -309,14 +309,37 @@ h2 {
   gap: 6px;
 }
 
-.role-group button {
+.role-group button,
+.role-checkbox {
   background: rgba(255, 255, 255, 0.12);
   color: inherit;
 }
 
-.role-group button.selected {
+.role-group button.selected,
+.role-checkbox.selected {
   background: #f5c542;
   color: #18150a;
+}
+
+.role-checkbox {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.role-checkbox input {
+  width: 15px;
+  min-width: 15px;
+  min-height: 15px;
+  margin: 0;
+  padding: 0;
+  accent-color: #19a974;
 }
 
 .key-intent-group {
@@ -498,6 +521,12 @@ h2 {
   font-weight: 800;
 }
 
+.role-badges {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
 .badge.tank {
   background: #72a7ff;
   color: #06152f;
@@ -652,6 +681,7 @@ h2 {
   }
 
   .role-group button,
+  .role-checkbox,
   .view-tabs button {
     min-height: 32px;
     font-size: 11px;
@@ -695,6 +725,7 @@ h2 {
   }
 
   .entry-line .badge,
+  .entry-line .role-badges,
   .entry-line .status,
   .entry-copy .character-line,
   .entry-copy > p,

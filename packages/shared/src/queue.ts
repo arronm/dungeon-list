@@ -19,8 +19,15 @@ export type KeyIntent = z.infer<typeof keyIntentSchema>;
 export type QueueEntryStatus = z.infer<typeof queueEntryStatusSchema>;
 export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
 
-const signupDetailsSchema = z.object({
-  role: queueRoleSchema,
+const selectedRolesSchema = z
+  .array(queueRoleSchema)
+  .min(1, "Select at least one role.")
+  .max(queueRoles.length)
+  .refine((roles) => new Set(roles).size === roles.length, "Each role can only be selected once.");
+
+const signupDetailsFields = {
+  roles: selectedRolesSchema.optional(),
+  role: queueRoleSchema.optional(),
   realm: northAmericanRealmSchema,
   characterName: z
     .string()
@@ -32,17 +39,19 @@ const signupDetailsSchema = z.object({
     .int("Key level must be a whole number.")
     .min(2, "Key level must be at least 2.")
     .max(99, "Key level must be 99 or lower.")
-});
+};
 
-export const joinQueueRequestSchema = signupDetailsSchema.extend({
+export const joinQueueRequestSchema = normalizeSignupRoles(z.object({
+  ...signupDetailsFields,
   keyIntent: z.literal("need"),
   dungeon: z.union([z.literal(anyMythicPlusDungeon), mythicPlusDungeonSchema])
-});
+}));
 
-export const offerKeyRequestSchema = signupDetailsSchema.extend({
+export const offerKeyRequestSchema = normalizeSignupRoles(z.object({
+  ...signupDetailsFields,
   keyIntent: z.literal("offer"),
   dungeon: mythicPlusDungeonSchema
-});
+}));
 
 export const setQueueSettingsRequestSchema = z.object({
   signupsOpen: z.boolean()
@@ -68,6 +77,26 @@ export type SetQueueSettingsRequest = z.infer<typeof setQueueSettingsRequestSche
 export type SetEntryStatusRequest = z.infer<typeof setEntryStatusRequestSchema>;
 export type MoveEntryRequest = z.infer<typeof moveEntryRequestSchema>;
 export type QueueEvent = z.infer<typeof queueEventSchema>;
+
+function normalizeSignupRoles<T extends z.ZodTypeAny>(schema: T) {
+  return schema
+    .superRefine((input: { roles?: QueueRole[]; role?: QueueRole }, context) => {
+      if (!input.roles && !input.role) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["roles"],
+          message: "Select at least one role."
+        });
+      }
+    })
+    .transform((input: z.output<T> & { roles?: QueueRole[]; role?: QueueRole }) => {
+      const { role, ...details } = input;
+      return {
+        ...details,
+        roles: input.roles ?? [role!]
+      };
+    });
+}
 
 export function getCharacterIdentityKey(
   character: { realm: string; characterName: string }
@@ -100,7 +129,9 @@ export interface QueueEntryDto {
   id: string;
   twitchUserId: string;
   displayName: string | null;
+  /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
+  roles: QueueRole[];
   realm: string;
   characterName: string;
   keyIntent: KeyIntent | null;
@@ -118,7 +149,9 @@ export interface KeyOfferDto {
   id: string;
   twitchUserId: string;
   displayName: string | null;
+  /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
+  roles: QueueRole[];
   realm: string;
   characterName: string;
   keyIntent: "offer";

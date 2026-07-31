@@ -4,7 +4,7 @@ import { parseCharacterDetails, serializeCharacterDetails } from "../src/charact
 describe("queue character details", () => {
   it("round trips structured character data through the legacy storage field", () => {
     const stored = serializeCharacterDetails({
-      role: "healer",
+      roles: ["healer", "dps"],
       realm: "Wyrmrest Accord",
       characterName: "Lightwell",
       keyIntent: "offer",
@@ -13,6 +13,7 @@ describe("queue character details", () => {
     });
 
     expect(parseCharacterDetails(stored)).toEqual({
+      roles: ["healer", "dps"],
       realm: "Wyrmrest Accord",
       characterName: "Lightwell",
       keyIntent: "offer",
@@ -23,7 +24,7 @@ describe("queue character details", () => {
 
   it("round trips a request for any dungeon", () => {
     const stored = serializeCharacterDetails({
-      role: "dps",
+      roles: ["dps"],
       realm: "Area 52",
       characterName: "Keyrunner",
       keyIntent: "need",
@@ -32,6 +33,7 @@ describe("queue character details", () => {
     });
 
     expect(parseCharacterDetails(stored)).toMatchObject({
+      roles: ["dps"],
       keyIntent: "need",
       dungeon: "Any",
       keyLevel: 10
@@ -40,6 +42,7 @@ describe("queue character details", () => {
 
   it("reads v1 character data without inventing key details", () => {
     expect(parseCharacterDetails('character:v1:["Illidan","Oldrun"]')).toEqual({
+      roles: [],
       realm: "Illidan",
       characterName: "Oldrun",
       keyIntent: null,
@@ -48,8 +51,20 @@ describe("queue character details", () => {
     });
   });
 
+  it("reads v2 signup data without inventing additional roles", () => {
+    expect(
+      parseCharacterDetails('character:v2:["Area 52","Keyrunner","need","Any",10]')
+    ).toMatchObject({
+      roles: [],
+      keyIntent: "need",
+      dungeon: "Any",
+      keyLevel: 10
+    });
+  });
+
   it("ignores legacy notes and malformed structured data", () => {
     const emptyDetails = {
+      roles: [],
       realm: "",
       characterName: "",
       keyIntent: null,
@@ -59,5 +74,6 @@ describe("queue character details", () => {
     expect(parseCharacterDetails("Ready for anything.")).toEqual(emptyDetails);
     expect(parseCharacterDetails("character:v1:not-json")).toEqual(emptyDetails);
     expect(parseCharacterDetails("character:v2:not-json")).toEqual(emptyDetails);
+    expect(parseCharacterDetails("character:v3:not-json")).toEqual(emptyDetails);
   });
 });

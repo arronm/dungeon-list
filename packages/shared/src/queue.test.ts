@@ -13,7 +13,7 @@ describe("queue schemas", () => {
   it("accepts a current North American realm and trims the character name", () => {
     expect(
       joinQueueRequestSchema.parse({
-        role: "tank",
+        roles: ["tank", "healer"],
         realm: "Area 52",
         characterName: "  Bulwark  ",
         keyIntent: "need",
@@ -21,7 +21,7 @@ describe("queue schemas", () => {
         keyLevel: 12
       })
     ).toEqual({
-      role: "tank",
+      roles: ["tank", "healer"],
       realm: "Area 52",
       characterName: "Bulwark",
       keyIntent: "need",
@@ -32,31 +32,48 @@ describe("queue schemas", () => {
 
   it("rejects unsupported roles, realms, and character names", () => {
     const validCharacter = {
+      roles: ["dps"],
       realm: "Area 52",
       characterName: "Bulwark",
       keyIntent: "need",
       dungeon: "Skyreach",
       keyLevel: 10
     };
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "bard" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, roles: ["bard"] })).toThrow();
     expect(() =>
-      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", realm: "Not A Realm" })
+      joinQueueRequestSchema.parse({ ...validCharacter, realm: "Not A Realm" })
     ).toThrow();
     expect(() =>
-      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", characterName: "x" })
+      joinQueueRequestSchema.parse({ ...validCharacter, characterName: "x" })
     ).toThrow();
     expect(() =>
-      joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", characterName: "x".repeat(13) })
+      joinQueueRequestSchema.parse({ ...validCharacter, characterName: "x".repeat(13) })
     ).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyIntent: "maybe" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", dungeon: "Deadmines" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 1 })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, role: "dps", keyLevel: 10.5 })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyIntent: "maybe" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, dungeon: "Deadmines" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyLevel: 1 })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyLevel: 10.5 })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, roles: [] })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, roles: ["dps", "dps"] })).toThrow();
+  });
+
+  it("normalizes legacy single-role requests during rollout", () => {
+    const parsed = joinQueueRequestSchema.parse({
+      role: "tank",
+      realm: "Area 52",
+      characterName: "Bulwark",
+      keyIntent: "need",
+      dungeon: "Skyreach",
+      keyLevel: 10
+    });
+
+    expect(parsed.roles).toEqual(["tank"]);
+    expect(parsed).not.toHaveProperty("role");
   });
 
   it("keeps queue requests and key offers as separate operations", () => {
     const signup = {
-      role: "dps",
+      roles: ["healer", "dps"],
       realm: "Area 52",
       characterName: "Keyrunner",
       dungeon: "Windrunner Spire",
@@ -91,7 +108,7 @@ describe("queue schemas", () => {
 
   it("allows any dungeon for requests but requires a specific offered key", () => {
     const signup = {
-      role: "dps",
+      roles: ["dps"],
       realm: "Area 52",
       characterName: "Keyrunner",
       dungeon: "Any",

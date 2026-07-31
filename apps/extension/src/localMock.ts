@@ -32,14 +32,14 @@ let signupDefaults: NonNullable<QueueStateDto["viewer"]["signupDefaults"]> = {
   characterName: "Taz"
 };
 let entries: QueueEntryDto[] = [
-  createEntry("mock-1", "mock-tank", "Shieldstack", "tank", "Bulwark", "Area 52", "waiting", 1, 2847),
-  createEntry("mock-2", "mock-healer", "Lightwell", "healer", "Sunmender", "Stormrage", "invited", 2, 2312),
-  createEntry("mock-3", "mock-dps", "Burstwindow", "dps", "Critstorm", "Illidan", "waiting", 3, 0),
-  createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4, 1975)
+  createEntry("mock-1", "mock-tank", "Shieldstack", ["tank", "dps"], "Bulwark", "Area 52", "waiting", 1, 2847),
+  createEntry("mock-2", "mock-healer", "Lightwell", ["healer"], "Sunmender", "Stormrage", "invited", 2, 2312),
+  createEntry("mock-3", "mock-dps", "Burstwindow", ["healer", "dps"], "Critstorm", "Illidan", "waiting", 3, 0),
+  createEntry("mock-4", "mock-done", "Keyholder", ["dps"], "Quickblade", "Sargeras", "completed", 4, 1975)
 ];
 let offers: KeyOfferDto[] = [
-  createOffer("offer-1", "mock-key-owner", "Keyrunner", "tank", "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 10, 2610),
-  createOffer("offer-2", "mock-key-owner", "Keyrunner", "dps", "Fastcast", "Area 52", "offer", "Magisters' Terrace", 10, 2395)
+  createOffer("offer-1", "mock-key-owner", "Keyrunner", ["tank", "dps"], "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 10, 2610),
+  createOffer("offer-2", "mock-key-owner", "Keyrunner", ["healer", "dps"], "Fastcast", "Area 52", "offer", "Magisters' Terrace", 10, 2395)
 ];
 
 export interface LocalMockAuthorization {
@@ -172,7 +172,8 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
     (entry) => entry.twitchUserId === viewer.userId && entry.status !== "completed"
   );
   if (existing) {
-    existing.role = input.role;
+    existing.role = input.roles[0]!;
+    existing.roles = [...input.roles];
     existing.realm = input.realm;
     existing.characterName = input.characterName;
     existing.keyIntent = input.keyIntent;
@@ -186,7 +187,7 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
       `mock-${Date.now()}`,
       viewer.userId,
       mockDisplayName,
-      input.role,
+      input.roles,
       input.characterName,
       input.realm,
       "waiting",
@@ -242,7 +243,7 @@ export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: Queu
       `offer-${Date.now()}`,
       viewer.userId,
       mockDisplayName,
-      input.role,
+      input.roles,
       input.characterName,
       input.realm,
       input.keyIntent,
@@ -366,7 +367,7 @@ function createEntry(
   id: string,
   twitchUserId: string,
   displayName: string,
-  role: QueueEntryDto["role"],
+  roles: QueueEntryDto["roles"],
   characterName: string,
   realm: string,
   status: QueueEntryDto["status"],
@@ -379,7 +380,8 @@ function createEntry(
     id,
     twitchUserId,
     displayName,
-    role,
+    role: roles[0]!,
+    roles,
     characterName,
     realm,
     keyIntent: "need",
@@ -407,7 +409,7 @@ function createOffer(
   id: string,
   twitchUserId: string,
   displayName: string,
-  role: KeyOfferDto["role"],
+  roles: KeyOfferDto["roles"],
   characterName: string,
   realm: string,
   keyIntent: "offer",
@@ -420,7 +422,8 @@ function createOffer(
     id,
     twitchUserId,
     displayName,
-    role,
+    role: roles[0]!,
+    roles,
     characterName,
     realm,
     keyIntent,
