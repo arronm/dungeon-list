@@ -1,5 +1,6 @@
 import {
   canModerateRole,
+  getCharacterIdentityKey,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
@@ -229,6 +230,12 @@ export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: Queu
     characterName: input.characterName
   };
 
+  const characterKey = getCharacterIdentityKey(input);
+  offers = offers.filter(
+    (offer) =>
+      offer.twitchUserId !== viewer.userId ||
+      getCharacterIdentityKey(offer) !== characterKey
+  );
   offers.unshift(
     createOffer(
       `offer-${Date.now()}`,

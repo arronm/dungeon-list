@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import {
   canModerateRole,
+  getCharacterIdentityKey,
   type KeyOfferDto,
   type JoinQueueRequest,
   type MoveEntryRequest,
@@ -101,10 +102,29 @@ export class QueueRepository {
   ): Promise<QueueStateDto> {
     const twitchUserId = requireLinkedViewer(principal);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.runSerializableTransaction(async (tx) => {
       const channel = await this.ensureChannel(tx, principal.channelId);
       if (!channel.signupsOpen && !canModerateRole(principal.role)) {
         throw new ApiError(409, "queue_closed", "Key submissions are currently closed.");
+      }
+
+      const characterKey = getCharacterIdentityKey(input);
+      const viewerOffers = await tx.keyOffer.findMany({
+        where: {
+          channelId: principal.channelId,
+          twitchUserId
+        }
+      });
+      const replacedOfferIds = viewerOffers
+        .filter((candidate) => getCharacterIdentityKey(parseCharacterDetails(candidate.note)) === characterKey)
+        .map((candidate) => candidate.id);
+
+      if (replacedOfferIds.length) {
+        await tx.keyOffer.deleteMany({
+          where: {
+            id: { in: replacedOfferIds }
+          }
+        });
       }
 
       const offer = await tx.keyOffer.create({
@@ -124,11 +144,36 @@ export class QueueRepository {
         realm: input.realm,
         characterName: input.characterName,
         dungeon: input.dungeon,
-        keyLevel: input.keyLevel
+        keyLevel: input.keyLevel,
+        replacedOfferIds
       });
       const revision = await this.touchChannel(tx, principal.channelId);
       return this.getQueueStateInTransaction(tx, principal, revision);
     });
+  }
+
+  private async runSerializableTransaction<T>(
+    callback: (tx: TransactionClient) => Promise<T>
+  ): Promise<T> {
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(callback, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+        });
+      } catch (error) {
+        const canRetry =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034" &&
+          attempt < maxAttempts;
+        if (!canRetry) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error("Serializable transaction retry limit reached.");
   }
 
   async syncCurrentViewerDisplayName(principal: ExtensionPrincipal, displayName: string): Promise<void> {

@@ -69,6 +69,15 @@ export type SetEntryStatusRequest = z.infer<typeof setEntryStatusRequestSchema>;
 export type MoveEntryRequest = z.infer<typeof moveEntryRequestSchema>;
 export type QueueEvent = z.infer<typeof queueEventSchema>;
 
+export function getCharacterIdentityKey(
+  character: { realm: string; characterName: string }
+): string {
+  return JSON.stringify([
+    character.realm.toLowerCase(),
+    character.characterName.trim().toLowerCase()
+  ]);
+}
+
 export interface QueueViewer {
   opaqueUserId: string;
   userId?: string;

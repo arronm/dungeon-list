@@ -106,6 +106,68 @@ describe("QueueRepository key offers", () => {
     });
     expect(database.offers()).toHaveLength(1);
   });
+
+  it("replaces an existing offer for the same character without matching name casing", async () => {
+    const database = createTestDatabase([]);
+    const repository = new QueueRepository(database.prisma);
+
+    const original = await repository.offerKey(
+      principal,
+      {
+        role: "tank",
+        realm: "Area 52",
+        characterName: "Wallbuilder",
+        keyIntent: "offer",
+        dungeon: "Windrunner Spire",
+        keyLevel: 12
+      },
+      "QueueViewer"
+    );
+    const replacement = await repository.offerKey(
+      principal,
+      {
+        role: "dps",
+        realm: "Area 52",
+        characterName: "wallBUILDER",
+        keyIntent: "offer",
+        dungeon: "Skyreach",
+        keyLevel: 15
+      },
+      "QueueViewer"
+    );
+
+    expect(replacement.offers).toHaveLength(1);
+    expect(replacement.offers[0]).toMatchObject({
+      characterName: "wallBUILDER",
+      role: "dps",
+      dungeon: "Skyreach",
+      keyLevel: 15
+    });
+    expect(replacement.offers[0]!.id).not.toBe(original.offers[0]!.id);
+    expect(database.offers()).toHaveLength(1);
+  });
+
+  it("keeps same-named characters on different realms as separate offers", async () => {
+    const database = createTestDatabase([]);
+    const repository = new QueueRepository(database.prisma);
+    const input = {
+      role: "dps" as const,
+      characterName: "Keyrunner",
+      keyIntent: "offer" as const,
+      dungeon: "Skyreach" as const,
+      keyLevel: 10
+    };
+
+    await repository.offerKey(principal, { ...input, realm: "Area 52" }, "QueueViewer");
+    const offeredKeys = await repository.offerKey(
+      principal,
+      { ...input, realm: "Illidan" },
+      "QueueViewer"
+    );
+
+    expect(offeredKeys.offers).toHaveLength(2);
+    expect(offeredKeys.offers.map((offer) => offer.realm)).toEqual(["Illidan", "Area 52"]);
+  });
 });
 
 function createEntry(overrides: Partial<QueueEntry> = {}): QueueEntry {
@@ -143,6 +205,7 @@ function createOffer(overrides: Partial<KeyOffer> = {}): KeyOffer {
 function createTestDatabase(initialEntries: QueueEntry[]) {
   let entries = [...initialEntries];
   let offers: KeyOffer[] = [];
+  let nextOfferId = 1;
   let signupPreference: {
     channelId: string;
     twitchUserId: string;
@@ -212,7 +275,7 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
       const timestamp = nextTimestamp();
       const offer = createOffer({
         ...data,
-        id: `offer-${offers.length + 1}`,
+        id: `offer-${nextOfferId++}`,
         displayName: data.displayName ?? null,
         createdAt: timestamp,
         updatedAt: timestamp
@@ -227,9 +290,19 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     ),
     findMany: vi.fn(async ({ where }: any) =>
       offers
-        .filter((offer) => offer.channelId === where.channelId)
+        .filter(
+          (offer) =>
+            offer.channelId === where.channelId &&
+            (where.twitchUserId === undefined || offer.twitchUserId === where.twitchUserId)
+        )
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     ),
+    deleteMany: vi.fn(async ({ where }: any) => {
+      const ids = new Set(where.id.in);
+      const previousLength = offers.length;
+      offers = offers.filter((offer) => !ids.has(offer.id));
+      return { count: previousLength - offers.length };
+    }),
     delete: vi.fn(async ({ where }: any) => {
       const offer = offers.find((candidate) => candidate.id === where.id)!;
       offers = offers.filter((candidate) => candidate.id !== where.id);

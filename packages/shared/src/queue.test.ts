@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canModerateRole,
+  getCharacterIdentityKey,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
@@ -66,6 +67,26 @@ describe("queue schemas", () => {
     expect(offerKeyRequestSchema.parse({ ...signup, keyIntent: "offer" }).keyIntent).toBe("offer");
     expect(() => joinQueueRequestSchema.parse({ ...signup, keyIntent: "offer" })).toThrow();
     expect(() => offerKeyRequestSchema.parse({ ...signup, keyIntent: "need" })).toThrow();
+  });
+
+  it("matches character identities without name casing but keeps realms distinct", () => {
+    const area52Key = getCharacterIdentityKey({
+      realm: "Area 52",
+      characterName: "Keyrunner"
+    });
+
+    expect(
+      getCharacterIdentityKey({
+        realm: "Area 52",
+        characterName: "keyRUNNER"
+      })
+    ).toBe(area52Key);
+    expect(
+      getCharacterIdentityKey({
+        realm: "Illidan",
+        characterName: "Keyrunner"
+      })
+    ).not.toBe(area52Key);
   });
 
   it("allows any dungeon for requests but requires a specific offered key", () => {
