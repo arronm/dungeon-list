@@ -1,4 +1,5 @@
 import {
+  anyMythicPlusDungeon,
   canModerateRole,
   getCharacterIdentityKey,
   joinQueueRequestSchema,
@@ -37,8 +38,8 @@ let entries: QueueEntryDto[] = [
   createEntry("mock-4", "mock-done", "Keyholder", "dps", "Quickblade", "Sargeras", "completed", 4, 1975)
 ];
 let offers: KeyOfferDto[] = [
-  createOffer("offer-1", "mock-key-owner", "Keyrunner", "tank", "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 12, 2610),
-  createOffer("offer-2", "mock-key-owner", "Keyrunner", "dps", "Fastcast", "Area 52", "offer", "Magisters' Terrace", 8, 2395)
+  createOffer("offer-1", "mock-key-owner", "Keyrunner", "tank", "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 10, 2610),
+  createOffer("offer-2", "mock-key-owner", "Keyrunner", "dps", "Fastcast", "Area 52", "offer", "Magisters' Terrace", 10, 2395)
 ];
 
 export interface LocalMockAuthorization {
@@ -382,7 +383,7 @@ function createEntry(
     characterName,
     realm,
     keyIntent: "need",
-    dungeon: "Skyreach",
+    dungeon: anyMythicPlusDungeon,
     keyLevel: 10,
     status,
     position,
