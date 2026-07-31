@@ -31,7 +31,7 @@ Broadcasters and moderators also receive current Mythic+ scores from Raider.IO. 
 
 Viewers who need a key create one active queue entry and can select every role they can play. Key offers are stored separately, so a viewer can advertise multiple characters and remove each offer independently.
 
-Broadcasters and moderators can open a viewer from the queue to see their request, queue controls, and available keys at the exact requested level and dungeon. Requests for `Any` dungeon match every offered key at that level.
+Broadcasters and moderators can open a viewer from the queue to see their request, queue controls, and available keys at the requested level or higher. Queue-position colors distinguish exact matches, higher-level-only matches, and requests with no usable key. Requests for `Any` dungeon match offered keys from every dungeon.
 
 The latest submitted character and realm are saved per viewer and channel, then used as editable defaults the next time the signup form loads.
 

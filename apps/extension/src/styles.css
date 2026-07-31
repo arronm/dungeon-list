@@ -414,6 +414,21 @@ h2 {
   font-weight: 800;
 }
 
+.position.key-exact {
+  background: #176c47;
+  color: #fff;
+}
+
+.position.key-higher {
+  background: #a86f08;
+  color: #fff;
+}
+
+.position.key-none {
+  background: #70272b;
+  color: #fff;
+}
+
 .entry-copy {
   overflow: hidden;
   min-width: 0;

@@ -52,7 +52,12 @@ import {
   updateQueueSettings
 } from "./api.js";
 import { formatInviteCommand } from "./invite.js";
-import { getMatchingKeyOffers, isMatchableKeyRequest } from "./keyMatching.js";
+import {
+  getAvailableKeyOffers,
+  getKeyAvailability,
+  type KeyAvailability,
+  isMatchableKeyRequest
+} from "./keyMatching.js";
 import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
 
 const roleLabels: Record<QueueRole, string> = {
@@ -73,6 +78,12 @@ const statusOrder: Record<QueueEntryStatus, number> = {
   waiting: 1,
   skipped: 2,
   completed: 3
+};
+
+const keyAvailabilityLabels: Record<KeyAvailability, string> = {
+  exact: "Exact-level key available",
+  higher: "Higher-level key available",
+  none: "No matching key available"
 };
 
 const queuePollIntervalMs = 15_000;
@@ -117,8 +128,8 @@ export function App() {
   const selectedEntryIndex = selectedEntry
     ? activeEntries.findIndex((entry) => entry.id === selectedEntry.id)
     : -1;
-  const matchingOffers = useMemo(
-    () => selectedEntry ? getMatchingKeyOffers(selectedEntry, queue?.offers ?? []) : [],
+  const availableOffers = useMemo(
+    () => selectedEntry ? getAvailableKeyOffers(selectedEntry, queue?.offers ?? []) : [],
     [queue?.offers, selectedEntry]
   );
   const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
@@ -167,20 +178,34 @@ export function App() {
       return;
     }
 
+    let pollInFlight = false;
+    const pollQueue = () => {
+      if (pollInFlight) {
+        return;
+      }
+
+      pollInFlight = true;
+      refreshQueue()
+        .catch((cause) => setError(errorMessage(cause)))
+        .finally(() => {
+          pollInFlight = false;
+        });
+    };
+
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshQueue().catch((cause) => setError(errorMessage(cause)));
+        pollQueue();
       }
     };
 
-    const intervalId = window.setInterval(refreshWhenVisible, queuePollIntervalMs);
+    const intervalId = window.setInterval(pollQueue, queuePollIntervalMs);
     document.addEventListener("visibilitychange", refreshWhenVisible);
-    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("focus", pollQueue);
 
     return () => {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
-      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("focus", pollQueue);
     };
   }, [helixToken, refreshQueue, token]);
 
@@ -437,15 +462,15 @@ export function App() {
         </section>
 
         <div className="detail-section-heading">
-          <h2>Matching available keys</h2>
-          <span>{matchingOffers.length}</span>
+          <h2>Matching and higher keys</h2>
+          <span>{availableOffers.length}</span>
         </div>
         <OfferList
-          offers={matchingOffers}
+          offers={availableOffers}
           canModerate
           busyAction={busyAction}
           copiedEntryId={copiedEntryId}
-          emptyMessage={formatNoMatchingKeys(selectedEntry)}
+          emptyMessage={formatNoAvailableKeys(selectedEntry)}
           onCopy={copyInvite}
           onRemove={(offerId) =>
             submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
@@ -672,6 +697,7 @@ export function App() {
         <>
           <QueueList
             entries={activeEntries}
+            offers={queue?.offers ?? []}
             canModerate={Boolean(queue?.viewer.canModerate)}
             busyAction={busyAction}
             copiedEntryId={copiedEntryId}
@@ -727,6 +753,7 @@ export function App() {
 
 interface QueueListProps {
   entries: QueueEntryDto[];
+  offers: KeyOfferDto[];
   canModerate: boolean;
   busyAction: string | undefined;
   copiedEntryId: string | undefined;
@@ -739,6 +766,7 @@ interface QueueListProps {
 
 function QueueList({
   entries,
+  offers,
   canModerate,
   busyAction,
   copiedEntryId,
@@ -759,6 +787,7 @@ function QueueList({
           <EntrySummary
             entry={entry}
             showRaiderIo={canModerate}
+            keyAvailability={getKeyAvailability(entry, offers)}
             onSelect={
               onSelect && isMatchableKeyRequest(entry)
                 ? () => onSelect(entry)
@@ -967,10 +996,12 @@ function EntryActions({
 function EntrySummary({
   entry,
   showRaiderIo,
+  keyAvailability,
   onSelect
 }: {
   entry: QueueEntryDto;
   showRaiderIo: boolean;
+  keyAvailability?: KeyAvailability | null;
   onSelect?: (() => void) | undefined;
 }) {
   const label = getViewerLabel(entry);
@@ -981,7 +1012,17 @@ function EntrySummary({
 
   return (
     <div className="entry-main">
-      <span className="position">{entry.position}</span>
+      <span
+        className={`position${keyAvailability ? ` key-${keyAvailability}` : ""}`}
+        title={keyAvailability ? keyAvailabilityLabels[keyAvailability] : undefined}
+        aria-label={
+          keyAvailability
+            ? `Queue position ${entry.position}: ${keyAvailabilityLabels[keyAvailability]}`
+            : `Queue position ${entry.position}`
+        }
+      >
+        {entry.position}
+      </span>
       <div className="entry-copy">
         <div className="entry-line">
           {onSelect ? (
@@ -1043,12 +1084,12 @@ function formatKeyNeed(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): stri
   return `Needs ${dungeon} +${entry.keyLevel ?? "?"}`;
 }
 
-function formatNoMatchingKeys(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): string {
+function formatNoAvailableKeys(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): string {
   const dungeon =
     entry.dungeon === anyMythicPlusDungeon
       ? ""
       : `${getMythicPlusDungeonShortName(entry.dungeon)} `;
-  return `No available ${dungeon}+${entry.keyLevel ?? "?"} keys match this request.`;
+  return `No available ${dungeon}+${entry.keyLevel ?? "?"} or higher keys match this request.`;
 }
 
 function RaiderIoScore({

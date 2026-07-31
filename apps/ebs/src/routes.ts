@@ -91,7 +91,8 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
 
   app.get("/health", async () => ({ ok: true }));
 
-  app.get("/api/queue", async (request) => {
+  app.get("/api/queue", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
     const principal = getPrincipal(request);
     const helixToken = getHelixToken(request);
     if (principal.userId && helixToken) {

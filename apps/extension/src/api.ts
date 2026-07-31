@@ -59,6 +59,7 @@ export function getQueue(token: string, helixToken: string): Promise<QueueStateR
   }
 
   return request<QueueStateResponse>("/api/queue", token, {
+    cache: "no-store",
     headers: { "X-Twitch-Helix-Token": helixToken }
   });
 }

@@ -17,6 +17,7 @@ describe("extension API client", () => {
     expect(headers.get("Authorization")).toBe("Bearer extension-jwt");
     expect(headers.get("X-Twitch-Helix-Token")).toBe("helix-jwt");
     expect(headers.has("Content-Type")).toBe(false);
+    expect(init?.cache).toBe("no-store");
   });
 
   it("submits only queue fields when joining", async () => {
