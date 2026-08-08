@@ -15,6 +15,7 @@ import {
 import { requireLinkedViewer, type ExtensionPrincipal } from "./auth.js";
 import { parseCharacterDetails, serializeCharacterDetails } from "./characterDetails.js";
 import { ApiError } from "./errors.js";
+import { currentDungeonCatalog } from "./dungeonCatalog.js";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -501,6 +502,7 @@ export class QueueRepository {
       channelId: principal.channelId,
       signupsOpen: channel.signupsOpen,
       revision,
+      dungeonCatalog: currentDungeonCatalog,
       viewer,
       entries: entries.map((entry): QueueEntryDto => {
         const characterDetails = parseCharacterDetails(entry.note);

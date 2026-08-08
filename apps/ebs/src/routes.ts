@@ -8,6 +8,7 @@ import {
   setQueueSettingsRequestSchema
 } from "@dungeon-list/shared";
 import { getPrincipal, requireLinkedViewer, requireQueueManager } from "./auth.js";
+import { requireCurrentDungeon } from "./dungeonCatalog.js";
 import { ApiError } from "./errors.js";
 import type { TwitchPubSubPublisher } from "./pubsub.js";
 import type { RaiderIoClient } from "./raiderIo.js";
@@ -110,9 +111,10 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   app.post("/api/queue/join", async (request) => {
     const principal = getPrincipal(request);
     const userId = requireLinkedViewer(principal);
+    const input = joinQueueRequestSchema.parse(request.body);
+    requireCurrentDungeon(input.dungeon, true);
     const helixToken = requireHelixToken(request);
     const displayName = await twitchUsers.getDisplayName(userId, helixToken);
-    const input = joinQueueRequestSchema.parse(request.body);
     const queue = await repository.join(principal, input, displayName);
     return publishMutation(queue, app);
   });
@@ -126,9 +128,10 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   app.post("/api/offers", async (request) => {
     const principal = getPrincipal(request);
     const userId = requireLinkedViewer(principal);
+    const input = offerKeyRequestSchema.parse(request.body);
+    requireCurrentDungeon(input.dungeon, false);
     const helixToken = requireHelixToken(request);
     const displayName = await twitchUsers.getDisplayName(userId, helixToken);
-    const input = offerKeyRequestSchema.parse(request.body);
     const queue = await repository.offerKey(principal, input, displayName);
     return publishMutation(queue, app);
   });

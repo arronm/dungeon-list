@@ -7,7 +7,20 @@ import {
   offerKeyRequestSchema,
   setEntryStatusRequestSchema
 } from "./queue.js";
-import { getMythicPlusDungeonShortName, mythicPlusDungeons } from "./dungeons.js";
+import {
+  dungeonCatalogSchema,
+  getMythicPlusDungeonShortName,
+  isDungeonInCatalog
+} from "./dungeons.js";
+
+const testDungeonCatalog = dungeonCatalogSchema.parse({
+  seasonId: "test-season",
+  seasonName: "Test Season",
+  dungeons: [
+    { name: "Skyreach", shortName: "Sky" },
+    { name: "Windrunner Spire", shortName: "Spire" }
+  ]
+});
 
 describe("queue schemas", () => {
   it("accepts a current North American realm and trims the character name", () => {
@@ -30,7 +43,7 @@ describe("queue schemas", () => {
     });
   });
 
-  it("rejects unsupported roles, realms, and character names", () => {
+  it("rejects unsupported roles, realms, character names, and malformed dungeon names", () => {
     const validCharacter = {
       roles: ["dps"],
       realm: "Area 52",
@@ -50,7 +63,8 @@ describe("queue schemas", () => {
       joinQueueRequestSchema.parse({ ...validCharacter, characterName: "x".repeat(13) })
     ).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyIntent: "maybe" })).toThrow();
-    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, dungeon: "Deadmines" })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, dungeon: "   " })).toThrow();
+    expect(() => joinQueueRequestSchema.parse({ ...validCharacter, dungeon: "x".repeat(81) })).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyLevel: 1 })).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, keyLevel: 10.5 })).toThrow();
     expect(() => joinQueueRequestSchema.parse({ ...validCharacter, roles: [] })).toThrow();
@@ -119,6 +133,21 @@ describe("queue schemas", () => {
     expect(() => offerKeyRequestSchema.parse({ ...signup, keyIntent: "offer" })).toThrow();
   });
 
+  it("leaves seasonal membership to the EBS catalog", () => {
+    const retiredDungeonRequest = joinQueueRequestSchema.parse({
+      roles: ["dps"],
+      realm: "Area 52",
+      characterName: "Keyrunner",
+      keyIntent: "need",
+      dungeon: "Retired Dungeon",
+      keyLevel: 10
+    });
+
+    expect(retiredDungeonRequest.dungeon).toBe("Retired Dungeon");
+    expect(isDungeonInCatalog(retiredDungeonRequest.dungeon, testDungeonCatalog, true)).toBe(false);
+    expect(isDungeonInCatalog("Any", testDungeonCatalog, true)).toBe(true);
+  });
+
   it("accepts only supported moderation transitions", () => {
     expect(setEntryStatusRequestSchema.parse({ status: "invited" }).status).toBe("invited");
     expect(moveEntryRequestSchema.parse({ direction: "up" }).direction).toBe("up");
@@ -131,16 +160,23 @@ describe("queue schemas", () => {
     expect(canModerateRole("broadcaster")).toBe(true);
   });
 
-  it("provides a compact label for every current dungeon", () => {
-    expect(mythicPlusDungeons.map(getMythicPlusDungeonShortName)).toEqual([
-      "MT",
-      "Cavern",
-      "Xenas",
-      "Spire",
-      "AA",
-      "Pit",
-      "Seat",
-      "Sky"
-    ]);
+  it("validates and formats an EBS-provided dungeon catalog", () => {
+    expect(testDungeonCatalog.dungeons.map((dungeon) =>
+      getMythicPlusDungeonShortName(dungeon.name, testDungeonCatalog.dungeons)
+    )).toEqual(["Sky", "Spire"]);
+    expect(getMythicPlusDungeonShortName("Legacy Dungeon", testDungeonCatalog.dungeons)).toBe(
+      "Legacy Dungeon"
+    );
+    expect(() => dungeonCatalogSchema.parse({
+      ...testDungeonCatalog,
+      dungeons: [
+        { name: "Skyreach", shortName: "Sky" },
+        { name: "skyreach", shortName: "Duplicate" }
+      ]
+    })).toThrow();
+    expect(() => dungeonCatalogSchema.parse({
+      ...testDungeonCatalog,
+      dungeons: [{ name: "Any", shortName: "Any" }]
+    })).toThrow();
   });
 });

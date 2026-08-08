@@ -1,7 +1,9 @@
 import {
   anyMythicPlusDungeon,
   canModerateRole,
+  dungeonCatalogSchema,
   getCharacterIdentityKey,
+  isDungeonInCatalog,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
@@ -23,6 +25,16 @@ const mockChannelId = "local-channel";
 const mockOpaqueUserId = "opaque-local-viewer";
 const mockViewerUserId = "local-viewer-1";
 const mockDisplayName = "Local Tester";
+const localDungeonCatalog = dungeonCatalogSchema.parse({
+  seasonId: "local-test-season",
+  seasonName: "Local Test Season",
+  dungeons: [
+    { name: "Mock Terrace", shortName: "Terrace" },
+    { name: "Mock Caverns", shortName: "Caverns" },
+    { name: "Mock Academy", shortName: "Academy" },
+    { name: "Mock Spire", shortName: "Spire" }
+  ]
+});
 
 let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
@@ -38,8 +50,8 @@ let entries: QueueEntryDto[] = [
   createEntry("mock-4", "mock-done", "Keyholder", ["dps"], "Quickblade", "Sargeras", "completed", 4, 1975)
 ];
 let offers: KeyOfferDto[] = [
-  createOffer("offer-1", "mock-key-owner", "Keyrunner", ["tank", "dps"], "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 10, 2610),
-  createOffer("offer-2", "mock-key-owner", "Keyrunner", ["healer", "dps"], "Fastcast", "Area 52", "offer", "Magisters' Terrace", 10, 2395)
+  createOffer("offer-1", "mock-key-owner", "Keyrunner", ["tank", "dps"], "Wallbuilder", "Area 52", "offer", "Mock Spire", 10, 2610),
+  createOffer("offer-2", "mock-key-owner", "Keyrunner", ["healer", "dps"], "Fastcast", "Area 52", "offer", "Mock Terrace", 10, 2395)
 ];
 
 export interface LocalMockAuthorization {
@@ -153,6 +165,7 @@ export async function mockGetQueue(): Promise<{ queue: QueueStateDto }> {
 
 export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: QueueStateDto }> {
   const input = joinQueueRequestSchema.parse(body);
+  requireMockDungeon(input.dungeon, true);
   const viewer = getQueueState().viewer;
 
   if (!viewer.userId) {
@@ -217,6 +230,7 @@ export async function mockLeaveQueue(): Promise<{ queue: QueueStateDto }> {
 
 export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: QueueStateDto }> {
   const input = offerKeyRequestSchema.parse(body);
+  requireMockDungeon(input.dungeon, false);
   const viewer = getQueueState().viewer;
 
   if (!viewer.userId) {
@@ -351,6 +365,7 @@ function getQueueState(): QueueStateDto {
     channelId: mockChannelId,
     signupsOpen,
     revision: String(mockRevision),
+    dungeonCatalog: localDungeonCatalog,
     viewer,
     entries: entries.map((entry) => ({
       ...entry,
@@ -361,6 +376,12 @@ function getQueueState(): QueueStateDto {
       isCurrentViewer: mockLinked && offer.twitchUserId === mockViewerUserId
     }))
   };
+}
+
+function requireMockDungeon(dungeon: string, allowAny: boolean): void {
+  if (!isDungeonInCatalog(dungeon, localDungeonCatalog, allowAny)) {
+    throw new Error("Select a dungeon from the local test catalog.");
+  }
 }
 
 function createEntry(

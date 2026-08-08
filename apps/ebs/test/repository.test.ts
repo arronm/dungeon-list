@@ -31,6 +31,10 @@ describe("QueueRepository completed history", () => {
     );
 
     expect(joinedQueue.entries).toHaveLength(2);
+    expect(joinedQueue.dungeonCatalog).toMatchObject({
+      seasonId: "midnight-season-1",
+      seasonName: "Midnight Season 1"
+    });
     expect(joinedQueue.entries.find((entry) => entry.id === "completed-1")).toMatchObject({
       role: "dps",
       roles: ["dps"],
