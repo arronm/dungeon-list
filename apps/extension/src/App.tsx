@@ -108,7 +108,7 @@ export function App() {
   const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
   const queueRequestGeneration = useRef(0);
   const copyResetTimer = useRef<number | undefined>();
-  const hydratedDefaultsForViewer = useRef<string | undefined>();
+  const hydratedDefaultsForChannel = useRef<string | undefined>();
 
   const sortedEntries = useMemo(() => {
     return [...(queue?.entries ?? [])].sort((a, b) => {
@@ -247,14 +247,12 @@ export function App() {
   }, [dungeon, dungeonOptions, keyIntent]);
 
   useEffect(() => {
-    const userId = queue?.viewer.userId;
     const defaults = queue?.viewer.signupDefaults;
-    if (!queue || !userId || !defaults) {
+    if (!queue || !defaults) {
       return;
     }
 
-    const viewerKey = `${queue.channelId}:${userId}`;
-    if (hydratedDefaultsForViewer.current === viewerKey) {
+    if (hydratedDefaultsForChannel.current === queue.channelId) {
       return;
     }
 
@@ -262,8 +260,8 @@ export function App() {
       setRealm(defaults.realm);
     }
     setCharacterName(defaults.characterName);
-    hydratedDefaultsForViewer.current = viewerKey;
-  }, [queue?.channelId, queue?.viewer.signupDefaults, queue?.viewer.userId]);
+    hydratedDefaultsForChannel.current = queue.channelId;
+  }, [queue?.channelId, queue?.viewer.signupDefaults]);
 
   useEffect(() => {
     if (currentEntry) {
@@ -865,7 +863,7 @@ function OfferList({
   return (
     <section className="queue-list" aria-label="Available dungeon keys">
       {offers.map((offer) => {
-        const label = offer.displayName ?? `Viewer ${offer.twitchUserId.slice(-4)}`;
+        const label = offer.displayName ?? "Unknown viewer";
         const dungeonLabel = getMythicPlusDungeonShortName(offer.dungeon, dungeons);
         const canRemove = canModerate || offer.isCurrentViewer;
 
@@ -1085,8 +1083,8 @@ function EntrySummary({
   );
 }
 
-function getViewerLabel(entry: Pick<QueueEntryDto, "displayName" | "twitchUserId">): string {
-  return entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
+function getViewerLabel(entry: Pick<QueueEntryDto, "displayName">): string {
+  return entry.displayName ?? "Unknown viewer";
 }
 
 function RoleBadges({

@@ -275,7 +275,7 @@ URL Fetching Domain Allowlist: <EBS host>
 Identity Linking: Enabled
 ```
 
-Identity linking is required for this app because queue entries need a stable Twitch user ID. Without it, viewers can see the UI but cannot join the waitlist.
+Identity linking is required for this app because the EBS needs a stable Twitch user ID to enforce queue ownership and prevent duplicate active entries. The EBS stores that ID internally, but queue API responses do not include numeric or opaque viewer IDs. Twitch still provides each linked viewer their own ID directly in their own Extension authorization context.
 
 The extension frontend already loads the Twitch Extension Helper in `apps/extension/index.html`:
 

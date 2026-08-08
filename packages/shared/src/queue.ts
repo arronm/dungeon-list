@@ -111,8 +111,6 @@ export function getCharacterIdentityKey(
 }
 
 export interface QueueViewer {
-  opaqueUserId: string;
-  userId?: string;
   role: ExtensionRole;
   isLinked: boolean;
   canModerate: boolean;
@@ -130,7 +128,6 @@ export interface RaiderIoSummary {
 
 export interface QueueEntryDto {
   id: string;
-  twitchUserId: string;
   displayName: string | null;
   /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
@@ -150,7 +147,6 @@ export interface QueueEntryDto {
 
 export interface KeyOfferDto {
   id: string;
-  twitchUserId: string;
   displayName: string | null;
   /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
