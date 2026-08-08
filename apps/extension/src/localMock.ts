@@ -1,7 +1,9 @@
 import {
   anyMythicPlusDungeon,
   canModerateRole,
+  dungeonCatalogSchema,
   getCharacterIdentityKey,
+  isDungeonInCatalog,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
@@ -23,6 +25,24 @@ const mockChannelId = "local-channel";
 const mockOpaqueUserId = "opaque-local-viewer";
 const mockViewerUserId = "local-viewer-1";
 const mockDisplayName = "Local Tester";
+const localDungeonCatalog = dungeonCatalogSchema.parse({
+  seasonId: "local-test-season",
+  seasonName: "Local Test Season",
+  dungeons: [
+    { name: "Mock Terrace", shortName: "Terrace" },
+    { name: "Mock Caverns", shortName: "Caverns" },
+    { name: "Mock Academy", shortName: "Academy" },
+    { name: "Mock Spire", shortName: "Spire" }
+  ]
+});
+
+interface MockQueueEntry extends QueueEntryDto {
+  ownerUserId: string;
+}
+
+interface MockKeyOffer extends KeyOfferDto {
+  ownerUserId: string;
+}
 
 let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
@@ -31,15 +51,15 @@ let signupDefaults: NonNullable<QueueStateDto["viewer"]["signupDefaults"]> = {
   realm: "Maelstrom",
   characterName: "Taz"
 };
-let entries: QueueEntryDto[] = [
+let entries: MockQueueEntry[] = [
   createEntry("mock-1", "mock-tank", "Shieldstack", ["tank", "dps"], "Bulwark", "Area 52", "waiting", 1, 2847),
   createEntry("mock-2", "mock-healer", "Lightwell", ["healer"], "Sunmender", "Stormrage", "invited", 2, 2312),
   createEntry("mock-3", "mock-dps", "Burstwindow", ["healer", "dps"], "Critstorm", "Illidan", "waiting", 3, 0),
   createEntry("mock-4", "mock-done", "Keyholder", ["dps"], "Quickblade", "Sargeras", "completed", 4, 1975)
 ];
-let offers: KeyOfferDto[] = [
-  createOffer("offer-1", "mock-key-owner", "Keyrunner", ["tank", "dps"], "Wallbuilder", "Area 52", "offer", "Windrunner Spire", 10, 2610),
-  createOffer("offer-2", "mock-key-owner", "Keyrunner", ["healer", "dps"], "Fastcast", "Area 52", "offer", "Magisters' Terrace", 10, 2395)
+let offers: MockKeyOffer[] = [
+  createOffer("offer-1", "mock-key-owner", "Keyrunner", ["tank", "dps"], "Wallbuilder", "Area 52", "offer", "Mock Spire", 10, 2610),
+  createOffer("offer-2", "mock-key-owner", "Keyrunner", ["healer", "dps"], "Fastcast", "Area 52", "offer", "Mock Terrace", 10, 2395)
 ];
 
 export interface LocalMockAuthorization {
@@ -153,9 +173,10 @@ export async function mockGetQueue(): Promise<{ queue: QueueStateDto }> {
 
 export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: QueueStateDto }> {
   const input = joinQueueRequestSchema.parse(body);
+  requireMockDungeon(input.dungeon, true);
   const viewer = getQueueState().viewer;
 
-  if (!viewer.userId) {
+  if (!mockLinked) {
     throw new Error("Share Twitch identity before joining the waitlist.");
   }
 
@@ -169,7 +190,7 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
   };
 
   const existing = entries.find(
-    (entry) => entry.twitchUserId === viewer.userId && entry.status !== "completed"
+    (entry) => entry.ownerUserId === mockViewerUserId && entry.status !== "completed"
   );
   if (existing) {
     existing.role = input.roles[0]!;
@@ -185,7 +206,7 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
   } else {
     const entry = createEntry(
       `mock-${Date.now()}`,
-      viewer.userId,
+      mockViewerUserId,
       mockDisplayName,
       input.roles,
       input.characterName,
@@ -204,10 +225,10 @@ export async function mockJoinQueue(body: JoinQueueRequest): Promise<{ queue: Qu
 }
 
 export async function mockLeaveQueue(): Promise<{ queue: QueueStateDto }> {
-  const userId = getQueueState().viewer.userId;
-
-  if (userId) {
-    entries = entries.filter((entry) => entry.twitchUserId !== userId || entry.status === "completed");
+  if (mockLinked) {
+    entries = entries.filter(
+      (entry) => entry.ownerUserId !== mockViewerUserId || entry.status === "completed"
+    );
     normalizeActivePositions();
     touchQueue();
   }
@@ -217,9 +238,10 @@ export async function mockLeaveQueue(): Promise<{ queue: QueueStateDto }> {
 
 export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: QueueStateDto }> {
   const input = offerKeyRequestSchema.parse(body);
+  requireMockDungeon(input.dungeon, false);
   const viewer = getQueueState().viewer;
 
-  if (!viewer.userId) {
+  if (!mockLinked) {
     throw new Error("Share Twitch identity before offering a key.");
   }
 
@@ -235,13 +257,13 @@ export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: Queu
   const characterKey = getCharacterIdentityKey(input);
   offers = offers.filter(
     (offer) =>
-      offer.twitchUserId !== viewer.userId ||
+      offer.ownerUserId !== mockViewerUserId ||
       getCharacterIdentityKey(offer) !== characterKey
   );
   offers.unshift(
     createOffer(
       `offer-${Date.now()}`,
-      viewer.userId,
+      mockViewerUserId,
       mockDisplayName,
       input.roles,
       input.characterName,
@@ -262,7 +284,7 @@ export async function mockRemoveOffer(offerId: string): Promise<{ queue: QueueSt
     throw new Error("Key offer was not found.");
   }
 
-  if (!viewer.canModerate && viewer.userId !== offer.twitchUserId) {
+  if (!viewer.canModerate && (!mockLinked || offer.ownerUserId !== mockViewerUserId)) {
     throw new Error("Only the offer owner or a queue manager can remove this key.");
   }
 
@@ -336,14 +358,12 @@ export async function mockUpdateQueueSettings(body: SetQueueSettingsRequest): Pr
 function getQueueState(): QueueStateDto {
   const role = getMockRole();
   const viewer: QueueStateDto["viewer"] = {
-    opaqueUserId: mockOpaqueUserId,
     role,
     isLinked: mockLinked,
     canModerate: canModerateRole(role)
   };
 
   if (mockLinked) {
-    viewer.userId = mockViewerUserId;
     viewer.signupDefaults = { ...signupDefaults };
   }
 
@@ -351,21 +371,28 @@ function getQueueState(): QueueStateDto {
     channelId: mockChannelId,
     signupsOpen,
     revision: String(mockRevision),
+    dungeonCatalog: localDungeonCatalog,
     viewer,
-    entries: entries.map((entry) => ({
+    entries: entries.map(({ ownerUserId, ...entry }) => ({
       ...entry,
-      isCurrentViewer: mockLinked && entry.twitchUserId === mockViewerUserId && entry.status !== "completed"
+      isCurrentViewer: mockLinked && ownerUserId === mockViewerUserId && entry.status !== "completed"
     })),
-    offers: offers.map((offer) => ({
+    offers: offers.map(({ ownerUserId, ...offer }) => ({
       ...offer,
-      isCurrentViewer: mockLinked && offer.twitchUserId === mockViewerUserId
+      isCurrentViewer: mockLinked && ownerUserId === mockViewerUserId
     }))
   };
 }
 
+function requireMockDungeon(dungeon: string, allowAny: boolean): void {
+  if (!isDungeonInCatalog(dungeon, localDungeonCatalog, allowAny)) {
+    throw new Error("Select a dungeon from the local test catalog.");
+  }
+}
+
 function createEntry(
   id: string,
-  twitchUserId: string,
+  ownerUserId: string,
   displayName: string,
   roles: QueueEntryDto["roles"],
   characterName: string,
@@ -373,12 +400,12 @@ function createEntry(
   status: QueueEntryDto["status"],
   position: number,
   raiderIoScore?: number
-): QueueEntryDto {
+): MockQueueEntry {
   const timestamp = now();
 
-  const entry: QueueEntryDto = {
+  const entry: MockQueueEntry = {
     id,
-    twitchUserId,
+    ownerUserId,
     displayName,
     role: roles[0]!,
     roles,
@@ -407,7 +434,7 @@ function createEntry(
 
 function createOffer(
   id: string,
-  twitchUserId: string,
+  ownerUserId: string,
   displayName: string,
   roles: KeyOfferDto["roles"],
   characterName: string,
@@ -416,11 +443,11 @@ function createOffer(
   dungeon: string,
   keyLevel: number,
   raiderIoScore?: number
-): KeyOfferDto {
+): MockKeyOffer {
   const timestamp = now();
-  const offer: KeyOfferDto = {
+  const offer: MockKeyOffer = {
     id,
-    twitchUserId,
+    ownerUserId,
     displayName,
     role: roles[0]!,
     roles,
@@ -466,7 +493,7 @@ function getInitialLinkedState(): boolean {
   return new URLSearchParams(window.location.search).get("mockLinked") !== "false";
 }
 
-function findEntry(entryId: string): QueueEntryDto {
+function findEntry(entryId: string): MockQueueEntry {
   const entry = entries.find((nextEntry) => nextEntry.id === entryId);
   if (!entry) {
     throw new Error("Queue entry was not found.");

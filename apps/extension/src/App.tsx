@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   anyMythicPlusDungeon,
+  type DungeonOptionDto,
   type QueueEntryDto,
   type QueueEntryStatus,
   type JoinQueueRequest,
@@ -33,7 +34,6 @@ import {
   type QueueRole,
   type QueueStateDto,
   getMythicPlusDungeonShortName,
-  mythicPlusDungeons,
   northAmericanRealms,
   queueRoles,
   queueEventSchema
@@ -87,6 +87,7 @@ const keyAvailabilityLabels: Record<KeyAvailability, string> = {
 };
 
 const queuePollIntervalMs = 15_000;
+const noDungeonOptions: readonly DungeonOptionDto[] = [];
 
 export function App() {
   const twitch = useTwitchAuth();
@@ -107,7 +108,7 @@ export function App() {
   const [copiedEntryId, setCopiedEntryId] = useState<string | undefined>();
   const queueRequestGeneration = useRef(0);
   const copyResetTimer = useRef<number | undefined>();
-  const hydratedDefaultsForViewer = useRef<string | undefined>();
+  const hydratedDefaultsForChannel = useRef<string | undefined>();
 
   const sortedEntries = useMemo(() => {
     return [...(queue?.entries ?? [])].sort((a, b) => {
@@ -132,11 +133,12 @@ export function App() {
     () => selectedEntry ? getAvailableKeyOffers(selectedEntry, queue?.offers ?? []) : [],
     [queue?.offers, selectedEntry]
   );
+  const dungeonOptions = queue?.dungeonCatalog?.dungeons ?? noDungeonOptions;
   const hasCharacterDetails = Boolean(realm && characterName.trim().length >= 2);
   const normalizedKeyLevel = Number(keyLevel);
-  const specificDungeon = mythicPlusDungeons.find((candidate) => candidate === dungeon);
+  const specificDungeon = dungeonOptions.find((candidate) => candidate.name === dungeon)?.name;
   const hasKeyDetails = Boolean(
-    (keyIntent === "need" ? dungeon : specificDungeon) &&
+    (keyIntent === "need" ? dungeon === anyMythicPlusDungeon || specificDungeon : specificDungeon) &&
       Number.isInteger(normalizedKeyLevel) &&
       normalizedKeyLevel >= 2 &&
       normalizedKeyLevel <= 99
@@ -235,14 +237,22 @@ export function App() {
   }, [twitch.context.theme]);
 
   useEffect(() => {
-    const userId = queue?.viewer.userId;
+    if (
+      dungeon &&
+      dungeon !== anyMythicPlusDungeon &&
+      !dungeonOptions.some((candidate) => candidate.name === dungeon)
+    ) {
+      setDungeon(keyIntent === "need" ? anyMythicPlusDungeon : "");
+    }
+  }, [dungeon, dungeonOptions, keyIntent]);
+
+  useEffect(() => {
     const defaults = queue?.viewer.signupDefaults;
-    if (!queue || !userId || !defaults) {
+    if (!queue || !defaults) {
       return;
     }
 
-    const viewerKey = `${queue.channelId}:${userId}`;
-    if (hydratedDefaultsForViewer.current === viewerKey) {
+    if (hydratedDefaultsForChannel.current === queue.channelId) {
       return;
     }
 
@@ -250,8 +260,8 @@ export function App() {
       setRealm(defaults.realm);
     }
     setCharacterName(defaults.characterName);
-    hydratedDefaultsForViewer.current = viewerKey;
-  }, [queue?.channelId, queue?.viewer.signupDefaults, queue?.viewer.userId]);
+    hydratedDefaultsForChannel.current = queue.channelId;
+  }, [queue?.channelId, queue?.viewer.signupDefaults]);
 
   useEffect(() => {
     if (currentEntry) {
@@ -421,7 +431,7 @@ export function App() {
           </button>
           <div>
             <h1>{getViewerLabel(selectedEntry)}</h1>
-            <p>{formatKeyNeed(selectedEntry)}</p>
+            <p>{formatKeyNeed(selectedEntry, dungeonOptions)}</p>
           </div>
           <button
             className="icon-button refresh-button"
@@ -437,7 +447,7 @@ export function App() {
         {error ? <div className="notice error">{error}</div> : null}
 
         <section className="entry detail-entry" aria-label="Selected viewer">
-          <EntrySummary entry={selectedEntry} showRaiderIo />
+          <EntrySummary entry={selectedEntry} showRaiderIo dungeons={dungeonOptions} />
           <EntryActions
             entry={selectedEntry}
             canMoveUp={selectedEntryIndex > 0}
@@ -470,7 +480,8 @@ export function App() {
           canModerate
           busyAction={busyAction}
           copiedEntryId={copiedEntryId}
-          emptyMessage={formatNoAvailableKeys(selectedEntry)}
+          dungeons={dungeonOptions}
+          emptyMessage={formatNoAvailableKeys(selectedEntry, dungeonOptions)}
           onCopy={copyInvite}
           onRemove={(offerId) =>
             submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
@@ -626,9 +637,9 @@ export function App() {
                     ) : (
                       <option value="">Select dungeon</option>
                     )}
-                    {mythicPlusDungeons.map((nextDungeon) => (
-                      <option key={nextDungeon} value={nextDungeon}>
-                        {getMythicPlusDungeonShortName(nextDungeon)}
+                    {dungeonOptions.map((nextDungeon) => (
+                      <option key={nextDungeon.name} value={nextDungeon.name}>
+                        {nextDungeon.shortName}
                       </option>
                     ))}
                   </select>
@@ -701,6 +712,7 @@ export function App() {
             canModerate={Boolean(queue?.viewer.canModerate)}
             busyAction={busyAction}
             copiedEntryId={copiedEntryId}
+            dungeons={dungeonOptions}
             onSelect={queue?.viewer.canModerate ? (entry) => setSelectedEntryId(entry.id) : undefined}
             onCopy={copyInvite}
             onStatus={(entryId, status) =>
@@ -718,7 +730,12 @@ export function App() {
             <section className="completed-list">
               <h2>Completed</h2>
               {completedEntries.map((entry) => (
-                <EntrySummary key={entry.id} entry={entry} showRaiderIo={Boolean(queue?.viewer.canModerate)} />
+                <EntrySummary
+                  key={entry.id}
+                  entry={entry}
+                  showRaiderIo={Boolean(queue?.viewer.canModerate)}
+                  dungeons={dungeonOptions}
+                />
               ))}
             </section>
           ) : null}
@@ -741,6 +758,7 @@ export function App() {
           canModerate={Boolean(queue?.viewer.canModerate)}
           busyAction={busyAction}
           copiedEntryId={copiedEntryId}
+          dungeons={dungeonOptions}
           onCopy={copyInvite}
           onRemove={(offerId) =>
             submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
@@ -754,6 +772,7 @@ export function App() {
 interface QueueListProps {
   entries: QueueEntryDto[];
   offers: KeyOfferDto[];
+  dungeons: readonly DungeonOptionDto[];
   canModerate: boolean;
   busyAction: string | undefined;
   copiedEntryId: string | undefined;
@@ -767,6 +786,7 @@ interface QueueListProps {
 function QueueList({
   entries,
   offers,
+  dungeons,
   canModerate,
   busyAction,
   copiedEntryId,
@@ -787,6 +807,7 @@ function QueueList({
           <EntrySummary
             entry={entry}
             showRaiderIo={canModerate}
+            dungeons={dungeons}
             keyAvailability={getKeyAvailability(entry, offers)}
             onSelect={
               onSelect && isMatchableKeyRequest(entry)
@@ -816,6 +837,7 @@ function QueueList({
 
 interface OfferListProps {
   offers: KeyOfferDto[];
+  dungeons: readonly DungeonOptionDto[];
   canModerate: boolean;
   busyAction: string | undefined;
   copiedEntryId: string | undefined;
@@ -826,6 +848,7 @@ interface OfferListProps {
 
 function OfferList({
   offers,
+  dungeons,
   canModerate,
   busyAction,
   copiedEntryId,
@@ -840,8 +863,8 @@ function OfferList({
   return (
     <section className="queue-list" aria-label="Available dungeon keys">
       {offers.map((offer) => {
-        const label = offer.displayName ?? `Viewer ${offer.twitchUserId.slice(-4)}`;
-        const dungeonLabel = getMythicPlusDungeonShortName(offer.dungeon);
+        const label = offer.displayName ?? "Unknown viewer";
+        const dungeonLabel = getMythicPlusDungeonShortName(offer.dungeon, dungeons);
         const canRemove = canModerate || offer.isCurrentViewer;
 
         return (
@@ -996,18 +1019,20 @@ function EntryActions({
 function EntrySummary({
   entry,
   showRaiderIo,
+  dungeons,
   keyAvailability,
   onSelect
 }: {
   entry: QueueEntryDto;
   showRaiderIo: boolean;
+  dungeons: readonly DungeonOptionDto[];
   keyAvailability?: KeyAvailability | null;
   onSelect?: (() => void) | undefined;
 }) {
   const label = getViewerLabel(entry);
   const keyDetails =
     entry.keyIntent && entry.dungeon && entry.keyLevel !== null
-      ? `${entry.keyIntent === "need" ? "Needs" : "Offers"} ${getMythicPlusDungeonShortName(entry.dungeon)} +${entry.keyLevel}`
+      ? `${entry.keyIntent === "need" ? "Needs" : "Offers"} ${getMythicPlusDungeonShortName(entry.dungeon, dungeons)} +${entry.keyLevel}`
       : undefined;
 
   return (
@@ -1058,8 +1083,8 @@ function EntrySummary({
   );
 }
 
-function getViewerLabel(entry: Pick<QueueEntryDto, "displayName" | "twitchUserId">): string {
-  return entry.displayName ?? `Viewer ${entry.twitchUserId.slice(-4)}`;
+function getViewerLabel(entry: Pick<QueueEntryDto, "displayName">): string {
+  return entry.displayName ?? "Unknown viewer";
 }
 
 function RoleBadges({
@@ -1079,16 +1104,22 @@ function RoleBadges({
   );
 }
 
-function formatKeyNeed(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): string {
-  const dungeon = getMythicPlusDungeonShortName(entry.dungeon);
+function formatKeyNeed(
+  entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">,
+  dungeons: readonly DungeonOptionDto[]
+): string {
+  const dungeon = getMythicPlusDungeonShortName(entry.dungeon, dungeons);
   return `Needs ${dungeon} +${entry.keyLevel ?? "?"}`;
 }
 
-function formatNoAvailableKeys(entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">): string {
+function formatNoAvailableKeys(
+  entry: Pick<QueueEntryDto, "dungeon" | "keyLevel">,
+  dungeons: readonly DungeonOptionDto[]
+): string {
   const dungeon =
     entry.dungeon === anyMythicPlusDungeon
       ? ""
-      : `${getMythicPlusDungeonShortName(entry.dungeon)} `;
+      : `${getMythicPlusDungeonShortName(entry.dungeon, dungeons)} `;
   return `No available ${dungeon}+${entry.keyLevel ?? "?"} or higher keys match this request.`;
 }
 

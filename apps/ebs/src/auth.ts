@@ -5,7 +5,6 @@ import { ApiError } from "./errors.js";
 
 export interface ExtensionPrincipal {
   channelId: string;
-  opaqueUserId: string;
   role: ExtensionRole;
   token: string;
   userId?: string;
@@ -61,12 +60,10 @@ export async function verifyExtensionJwt(token: string, options: JwtOptions): Pr
 
     const role = extensionRoleSchema.parse(requireStringClaim(payload, "role"));
     const channelId = requireStringClaim(payload, "channel_id");
-    const opaqueUserId = requireStringClaim(payload, "opaque_user_id");
     const userId = typeof payload.user_id === "string" && payload.user_id.length > 0 ? payload.user_id : undefined;
 
     const principal: ExtensionPrincipal = {
       channelId,
-      opaqueUserId,
       role,
       token
     };
@@ -142,4 +139,3 @@ export function registerAuth(app: FastifyInstance, options: JwtOptions): void {
     request.principal = await verifyExtensionJwt(token, options);
   });
 }
-

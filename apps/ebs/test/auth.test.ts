@@ -24,7 +24,6 @@ describe("Twitch Extension JWT auth", () => {
 
     await expect(verifyExtensionJwt(token, { extensionSecret, clientId })).resolves.toMatchObject({
       channelId: "1234",
-      opaqueUserId: "U123",
       userId: "5678",
       role: "viewer"
     });

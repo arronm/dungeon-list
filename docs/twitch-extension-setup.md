@@ -129,6 +129,7 @@ Chrome 142 and newer also require Local Network Access permission when Twitch lo
 - Every `/api/*` request must include `Authorization: Bearer <extension-jwt>`.
 - The EBS verifies the Extension JWT signature and expiration using the shared extension secret.
 - Viewers must share identity before joining so the queue can maintain one active entry per Twitch user per channel.
+- Numeric Twitch user IDs remain private to the EBS and database. Queue responses expose Twitch display names and server-calculated ownership flags, not numeric or opaque viewer IDs. Twitch independently provides a linked viewer their own ID in that viewer's Extension authorization context.
 - Broadcaster and moderator actions are allowed only when the verified token role is `broadcaster` or `moderator`.
 - PubSub messages are signed by the EBS with an `external` role JWT and only send a compact invalidation event; clients refetch the queue from the API.
 - Viewer clients also poll every 15 seconds while loaded and refresh when the tab regains focus, so queues remain current if PubSub is unavailable or Twitch reports a nested iframe as hidden.
@@ -137,4 +138,17 @@ Chrome 142 and newer also require Local Network Access permission when Twitch lo
 
 Each signup stores a role, character name, and Retail realm from Blizzard's United States realm category. The realm catalog in `packages/shared/src/realms.ts` was retrieved from Blizzard's official Americas & Oceania realm-status dataset and is shared by frontend options and backend request validation. Character details use a versioned representation in the existing queue-entry storage field so this update does not require a database migration.
 
-A future key-volunteering feature should add a nullable structured key offer to queue entries, then expose dungeon, level, and availability controls in the signup form. The existing per-channel queue and moderation endpoints can remain the authority for ordering and status changes.
+## Seasonal Dungeon Catalog
+
+The production Mythic+ dungeon rotation is owned by `apps/ebs/src/dungeonCatalog.ts`. Queue responses include the catalog's season ID, display name, dungeon names, and compact labels. The extension renders those values instead of bundling a production seasonal list.
+
+The EBS also validates new queue requests and key offers against its current catalog. `Any` remains valid for key requests but not key offers. Previously stored entries remain readable after a season changes; a retired dungeon falls back to its full stored name when it is no longer present in the current compact-label catalog.
+
+For the initial rollout, deploy the EBS before releasing the Extension assets so both old and new clients receive compatible queue responses. For later seasonal changes:
+
+1. Close or clear active queues at the season boundary as appropriate.
+2. Update the season metadata, dungeon names, and compact labels in `apps/ebs/src/dungeonCatalog.ts`.
+3. Run the test, typecheck, and build commands.
+4. Deploy only the EBS.
+
+Loaded Extension views receive the new catalog through normal queue polling within approximately 15 seconds. A selection removed by the catalog update is reset before it can be submitted, and the EBS remains the final authority if a stale or modified client submits an unsupported dungeon.

@@ -35,4 +35,4 @@ Broadcasters and moderators can open a viewer from the queue to see their reques
 
 The latest submitted character and realm are saved per viewer and channel, then used as editable defaults the next time the signup form loads.
 
-The current Mythic+ dungeon rotation and its compact UI labels are maintained in `packages/shared/src/dungeons.ts` and should be updated when the seasonal pool changes.
+The current Mythic+ dungeon rotation and compact UI labels are maintained by the EBS in `apps/ebs/src/dungeonCatalog.ts`. The extension receives the catalog with queue state, so future seasonal rotations require an EBS deploy but not a new Extension asset review.
