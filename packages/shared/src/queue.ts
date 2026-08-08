@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { anyMythicPlusDungeon, mythicPlusDungeons } from "./dungeons.js";
+import {
+  dungeonNameSchema,
+  specificDungeonNameSchema,
+  type DungeonCatalogDto
+} from "./dungeons.js";
 import { northAmericanRealms } from "./realms.js";
 
 export const queueRoles = ["tank", "healer", "dps"] as const;
@@ -12,7 +16,6 @@ export const keyIntentSchema = z.enum(keyIntents);
 export const queueEntryStatusSchema = z.enum(queueEntryStatuses);
 export const extensionRoleSchema = z.enum(extensionRoles);
 export const northAmericanRealmSchema = z.enum(northAmericanRealms);
-export const mythicPlusDungeonSchema = z.enum(mythicPlusDungeons);
 
 export type QueueRole = z.infer<typeof queueRoleSchema>;
 export type KeyIntent = z.infer<typeof keyIntentSchema>;
@@ -44,13 +47,13 @@ const signupDetailsFields = {
 export const joinQueueRequestSchema = normalizeSignupRoles(z.object({
   ...signupDetailsFields,
   keyIntent: z.literal("need"),
-  dungeon: z.union([z.literal(anyMythicPlusDungeon), mythicPlusDungeonSchema])
+  dungeon: dungeonNameSchema
 }));
 
 export const offerKeyRequestSchema = normalizeSignupRoles(z.object({
   ...signupDetailsFields,
   keyIntent: z.literal("offer"),
-  dungeon: mythicPlusDungeonSchema
+  dungeon: specificDungeonNameSchema
 }));
 
 export const setQueueSettingsRequestSchema = z.object({
@@ -108,8 +111,6 @@ export function getCharacterIdentityKey(
 }
 
 export interface QueueViewer {
-  opaqueUserId: string;
-  userId?: string;
   role: ExtensionRole;
   isLinked: boolean;
   canModerate: boolean;
@@ -127,7 +128,6 @@ export interface RaiderIoSummary {
 
 export interface QueueEntryDto {
   id: string;
-  twitchUserId: string;
   displayName: string | null;
   /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
@@ -147,7 +147,6 @@ export interface QueueEntryDto {
 
 export interface KeyOfferDto {
   id: string;
-  twitchUserId: string;
   displayName: string | null;
   /** @deprecated Use roles. Retained during the multi-role API rollout. */
   role: QueueRole;
@@ -167,6 +166,7 @@ export interface QueueStateDto {
   channelId: string;
   signupsOpen: boolean;
   revision: string;
+  dungeonCatalog: DungeonCatalogDto;
   viewer: QueueViewer;
   entries: QueueEntryDto[];
   offers: KeyOfferDto[];

@@ -1,31 +1,73 @@
-// Midnight Season 1 Mythic+ rotation published by Blizzard on 2026-03-18.
-export const mythicPlusDungeons = [
-  "Magisters' Terrace",
-  "Maisara Caverns",
-  "Nexus-Point Xenas",
-  "Windrunner Spire",
-  "Algeth'ar Academy",
-  "Pit of Saron",
-  "Seat of the Triumvirate",
-  "Skyreach"
-] as const;
+import { z } from "zod";
 
 export const anyMythicPlusDungeon = "Any" as const;
 
-export type MythicPlusDungeon = (typeof mythicPlusDungeons)[number];
+export const dungeonNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Select a dungeon.")
+  .max(80, "Dungeon names must be 80 characters or fewer.");
+
+export const specificDungeonNameSchema = dungeonNameSchema.refine(
+  (dungeon) => dungeon !== anyMythicPlusDungeon,
+  "Select a specific dungeon."
+);
+
+export const dungeonOptionSchema = z.object({
+  name: specificDungeonNameSchema,
+  shortName: z
+    .string()
+    .trim()
+    .min(1, "Dungeon short names cannot be empty.")
+    .max(20, "Dungeon short names must be 20 characters or fewer.")
+});
+
+export const dungeonCatalogSchema = z
+  .object({
+    seasonId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Season IDs must use lowercase kebab-case."),
+    seasonName: z.string().trim().min(1).max(80),
+    dungeons: z.array(dungeonOptionSchema).min(1).max(20)
+  })
+  .superRefine((catalog, context) => {
+    const names = new Set<string>();
+    for (const [index, dungeon] of catalog.dungeons.entries()) {
+      const normalizedName = dungeon.name.toLocaleLowerCase("en-US");
+      if (names.has(normalizedName)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["dungeons", index, "name"],
+          message: "Dungeon names must be unique."
+        });
+      }
+      names.add(normalizedName);
+    }
+  });
+
+export type DungeonOptionDto = z.infer<typeof dungeonOptionSchema>;
+export type DungeonCatalogDto = z.infer<typeof dungeonCatalogSchema>;
+export type MythicPlusDungeon = string;
 export type KeyRequestDungeon = MythicPlusDungeon | typeof anyMythicPlusDungeon;
 
-export const mythicPlusDungeonShortNames: Record<MythicPlusDungeon, string> = {
-  "Magisters' Terrace": "MT",
-  "Maisara Caverns": "Cavern",
-  "Nexus-Point Xenas": "Xenas",
-  "Windrunner Spire": "Spire",
-  "Algeth'ar Academy": "AA",
-  "Pit of Saron": "Pit",
-  "Seat of the Triumvirate": "Seat",
-  Skyreach: "Sky"
-};
+export function isDungeonInCatalog(
+  dungeon: string,
+  catalog: Pick<DungeonCatalogDto, "dungeons">,
+  allowAny = false
+): boolean {
+  if (allowAny && dungeon === anyMythicPlusDungeon) {
+    return true;
+  }
 
-export function getMythicPlusDungeonShortName(dungeon: string): string {
-  return mythicPlusDungeonShortNames[dungeon as MythicPlusDungeon] ?? dungeon;
+  return catalog.dungeons.some((candidate) => candidate.name === dungeon);
+}
+
+export function getMythicPlusDungeonShortName(
+  dungeon: string,
+  dungeons: readonly DungeonOptionDto[]
+): string {
+  return dungeons.find((candidate) => candidate.name === dungeon)?.shortName ?? dungeon;
 }

@@ -5,7 +5,6 @@ import { QueueRepository } from "../src/repository.js";
 
 const principal: ExtensionPrincipal = {
   channelId: "channel-1",
-  opaqueUserId: "opaque-viewer-1",
   userId: "viewer-1",
   role: "viewer",
   token: "extension-token"
@@ -31,6 +30,14 @@ describe("QueueRepository completed history", () => {
     );
 
     expect(joinedQueue.entries).toHaveLength(2);
+    expect(joinedQueue.dungeonCatalog).toMatchObject({
+      seasonId: "midnight-season-1",
+      seasonName: "Midnight Season 1"
+    });
+    expect(joinedQueue.viewer).not.toHaveProperty("userId");
+    expect(joinedQueue.viewer).not.toHaveProperty("opaqueUserId");
+    expect(joinedQueue.entries.every((entry) => !("twitchUserId" in entry))).toBe(true);
+    expect(JSON.stringify(joinedQueue)).not.toContain("viewer-1");
     expect(joinedQueue.entries.find((entry) => entry.id === "completed-1")).toMatchObject({
       role: "dps",
       roles: ["dps"],
@@ -38,7 +45,6 @@ describe("QueueRepository completed history", () => {
     });
     const activeEntry = joinedQueue.entries.find((entry) => entry.status !== "completed");
     expect(activeEntry).toMatchObject({
-      twitchUserId: "viewer-1",
       role: "tank",
       roles: ["tank", "dps"],
       isCurrentViewer: true,
@@ -46,6 +52,9 @@ describe("QueueRepository completed history", () => {
       keyIntent: "need",
       dungeon: "Skyreach",
       keyLevel: 12
+    });
+    expect(database.entries().find((entry) => entry.status !== "completed")).toMatchObject({
+      twitchUserId: "viewer-1"
     });
     expect(joinedQueue.viewer.signupDefaults).toEqual({
       realm: "Area 52",
@@ -96,6 +105,8 @@ describe("QueueRepository key offers", () => {
 
     expect(offeredKeys.entries).toHaveLength(0);
     expect(offeredKeys.offers).toHaveLength(2);
+    expect(offeredKeys.offers.every((offer) => !("twitchUserId" in offer))).toBe(true);
+    expect(JSON.stringify(offeredKeys)).not.toContain("viewer-1");
     expect(offeredKeys.offers.map((offer) => offer.characterName)).toEqual(["Fastcast", "Wallbuilder"]);
     expect(offeredKeys.viewer.signupDefaults).toEqual({
       realm: "Illidan",

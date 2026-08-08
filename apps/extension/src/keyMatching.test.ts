@@ -88,7 +88,6 @@ describe("key offer matching", () => {
 function createRequest(overrides: Partial<QueueEntryDto> = {}): QueueEntryDto {
   return {
     id: "request-1",
-    twitchUserId: "viewer-1",
     displayName: "Key Seeker",
     role: "dps",
     roles: ["dps"],
@@ -109,7 +108,6 @@ function createRequest(overrides: Partial<QueueEntryDto> = {}): QueueEntryDto {
 function createOffer(id: string, dungeon: string, keyLevel: number): KeyOfferDto {
   return {
     id,
-    twitchUserId: `owner-${id}`,
     displayName: `Owner ${id}`,
     role: "tank",
     roles: ["tank", "dps"],
