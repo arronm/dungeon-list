@@ -11,16 +11,19 @@ import {
   previewCollaborationTarget,
   revokeCollaborationInvite
 } from "./api.js";
+import { copyToClipboard } from "./clipboard.js";
 
 interface CollaborationPanelProps {
   token: string;
   helixToken: string;
+  queueRevision: string;
   onQueueIdentityChanged(): Promise<void>;
 }
 
 export function CollaborationPanel({
   token,
   helixToken,
+  queueRevision,
   onQueueIdentityChanged
 }: CollaborationPanelProps) {
   const isLocalMock = token.startsWith("local-dev-token:");
@@ -40,7 +43,7 @@ export function CollaborationPanel({
 
   useEffect(() => {
     refresh().catch((cause) => setError(getMessage(cause)));
-  }, [refresh]);
+  }, [queueRevision, refresh]);
 
   async function run(action: string, callback: () => Promise<void>) {
     setBusy(action);
@@ -86,7 +89,7 @@ export function CollaborationPanel({
                 className="invite-code"
                 type="button"
                 title="Copy collaboration code"
-                onClick={() => void copyText(state.code).catch(() => setError("The code could not be copied."))}
+                onClick={() => void copyToClipboard(state.code).catch(() => setError("The code could not be copied."))}
               >
                 <strong>{state.code}</strong><Copy size={15} />
               </button>
@@ -235,9 +238,4 @@ function formatExpiration(value: string): string {
 
 function getMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "The collaboration request failed.";
-}
-
-async function copyText(value: string): Promise<void> {
-  if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable.");
-  await navigator.clipboard.writeText(value);
 }

@@ -321,6 +321,22 @@ export class QueueRepository {
     });
   }
 
+  async clearOffers(principal: ExtensionPrincipal, expectedRevision?: string): Promise<QueueStateDto> {
+    return this.runSerializableTransaction(async (tx) => {
+      const access = await this.resolveQueueAccess(tx, principal);
+      await this.assertSharedRevision(tx, access, expectedRevision);
+      if (!this.canClearQueue(principal, access)) {
+        throw new ApiError(403, "forbidden", "Only the host broadcaster can clear all offers from a shared queue.");
+      }
+      const removed = await tx.keyOffer.deleteMany({ where: { channelId: access.canonicalQueueId } });
+      await this.writeEvent(tx, principal, access.canonicalQueueId, "offers.cleared", undefined, {
+        removedOfferCount: removed.count
+      });
+      await this.incrementRevision(tx, access.canonicalQueueId);
+      return this.getQueueStateInTransaction(tx, principal, access);
+    });
+  }
+
   async setSettings(
     principal: ExtensionPrincipal,
     input: SetQueueSettingsRequest,

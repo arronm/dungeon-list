@@ -124,6 +124,55 @@ describe("QueueRepository key offers", () => {
     expect(database.offers()).toHaveLength(1);
   });
 
+  it("allows a queue manager to clear all offers without clearing entries", async () => {
+    const database = createTestDatabase([createEntry({ id: "waiting-1", status: "waiting" })]);
+    const repository = new QueueRepository(database.prisma);
+    const broadcaster = { ...principal, role: "broadcaster" as const };
+
+    await repository.offerKey(
+      broadcaster,
+      {
+        roles: ["tank"],
+        realm: "Area 52",
+        characterName: "Wallbuilder",
+        keyIntent: "offer",
+        dungeon: "Windrunner Spire",
+        keyLevel: 12
+      },
+      "QueueViewer"
+    );
+    await repository.offerKey(
+      broadcaster,
+      {
+        roles: ["healer"],
+        realm: "Illidan",
+        characterName: "Fastcast",
+        keyIntent: "offer",
+        dungeon: "Magisters' Terrace",
+        keyLevel: 8
+      },
+      "QueueViewer"
+    );
+
+    const cleared = await repository.clearOffers(broadcaster);
+
+    expect(cleared.offers).toHaveLength(0);
+    expect(cleared.entries).toHaveLength(1);
+    expect(cleared.entries[0]?.id).toBe("waiting-1");
+    expect(database.offers()).toHaveLength(0);
+    expect(database.entries()).toHaveLength(1);
+  });
+
+  it("does not allow a viewer to clear all offers", async () => {
+    const database = createTestDatabase([]);
+    const repository = new QueueRepository(database.prisma);
+
+    await expect(repository.clearOffers(principal)).rejects.toMatchObject({
+      code: "forbidden",
+      statusCode: 403
+    });
+  });
+
   it("replaces an existing offer for the same character without matching name casing", async () => {
     const database = createTestDatabase([]);
     const repository = new QueueRepository(database.prisma);
@@ -319,9 +368,13 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     ),
     deleteMany: vi.fn(async ({ where }: any) => {
-      const ids = new Set(where.id.in);
       const previousLength = offers.length;
-      offers = offers.filter((offer) => !ids.has(offer.id));
+      if (where.id?.in) {
+        const ids = new Set(where.id.in);
+        offers = offers.filter((offer) => !ids.has(offer.id));
+      } else if (where.channelId) {
+        offers = offers.filter((offer) => offer.channelId !== where.channelId);
+      }
       return { count: previousLength - offers.length };
     }),
     delete: vi.fn(async ({ where }: any) => {

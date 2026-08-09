@@ -39,6 +39,7 @@ import {
 } from "@dungeon-list/shared";
 import {
   ApiClientError,
+  clearOffers,
   clearQueue,
   getQueue,
   joinQueue,
@@ -60,6 +61,7 @@ import {
 import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
 import { isQueueEventForChannel } from "./queueEvents.js";
 import { CollaborationPanel } from "./CollaborationPanel.js";
+import { copyToClipboard } from "./clipboard.js";
 
 const roleLabels: Record<QueueRole, string> = {
   tank: "Tank",
@@ -533,6 +535,7 @@ export function App({ showCollaborationPanel = false }: { showCollaborationPanel
         <CollaborationPanel
           token={token}
           helixToken={helixToken}
+          queueRevision={queue.revision}
           onQueueIdentityChanged={refreshQueue}
         />
       ) : null}
@@ -771,17 +774,31 @@ export function App({ showCollaborationPanel = false }: { showCollaborationPanel
           ) : null}
         </>
       ) : (
-        <OfferList
-          offers={queue?.offers ?? []}
-          canModerate={Boolean(queue?.viewer.canModerate)}
-          busyAction={busyAction}
-          copiedEntryId={copiedEntryId}
-          dungeons={dungeonOptions}
-          onCopy={copyInvite}
-          onRemove={(offerId) =>
-            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue?.revision))
-          }
-        />
+        <>
+          <OfferList
+            offers={queue?.offers ?? []}
+            canModerate={Boolean(queue?.viewer.canModerate)}
+            busyAction={busyAction}
+            copiedEntryId={copiedEntryId}
+            dungeons={dungeonOptions}
+            onCopy={copyInvite}
+            onRemove={(offerId) =>
+              submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue?.revision))
+            }
+          />
+
+          {queue?.viewer.permissions.clearQueue && queue.offers.length ? (
+            <button
+              className="clear-button"
+              type="button"
+              disabled={busyAction === "clear-offers"}
+              onClick={() => submitModeration("clear-offers", () => clearOffers(token, queue.revision))}
+            >
+              <Trash2 size={16} />
+              Clear available keys
+            </button>
+          ) : null}
+        </>
       )}
     </main>
   );
@@ -1194,31 +1211,6 @@ function getErrorCode(cause: unknown): string | undefined {
   if (cause instanceof ApiClientError) return cause.code;
   if (cause instanceof Error && "code" in cause && typeof cause.code === "string") return cause.code;
   return undefined;
-}
-
-async function copyToClipboard(value: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(value);
-      return;
-    } catch {
-      // Some extension iframe policies reject Clipboard API writes; use the user-activated fallback below.
-    }
-  }
-
-  const input = document.createElement("textarea");
-  input.value = value;
-  input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-
-  if (!copied) {
-    throw new Error("Clipboard write failed.");
-  }
 }
 
 function isNorthAmericanRealm(value: string): value is NorthAmericanRealm {

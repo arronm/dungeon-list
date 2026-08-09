@@ -186,6 +186,13 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     return publishMutation(queue, app);
   });
 
+  app.post("/api/moderation/offers/clear", async (request) => {
+    const principal = getPrincipal(request);
+    requireQueueManager(principal);
+    const queue = await repository.clearOffers(principal, getQueueRevision(request));
+    return publishMutation(queue, app);
+  });
+
   app.post("/api/moderation/settings", async (request) => {
     const principal = getPrincipal(request);
     requireQueueManager(principal);

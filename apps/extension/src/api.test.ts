@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  clearOffers,
   clearQueue,
   createCollaborationInvite,
   getCollaboration,
@@ -132,7 +133,8 @@ describe("extension API client", () => {
 
   it.each([
     ["leave", leaveQueue, "/api/queue/leave"],
-    ["clear", clearQueue, "/api/moderation/clear"]
+    ["clear", clearQueue, "/api/moderation/clear"],
+    ["clear offers", clearOffers, "/api/moderation/offers/clear"]
   ])("does not declare an empty JSON body for %s", async (_name, action, path) => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
     vi.stubGlobal("fetch", fetchMock);

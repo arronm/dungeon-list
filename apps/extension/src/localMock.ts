@@ -353,8 +353,16 @@ export async function mockRemoveEntry(entryId: string, revision?: string): Promi
 
 export async function mockClearQueue(revision?: string): Promise<{ queue: QueueStateDto }> {
   requireMockRevision(revision);
-  requireMockModerator();
+  requireMockClearPermission();
   entries = [];
+  touchQueue();
+  return { queue: getQueueState() };
+}
+
+export async function mockClearOffers(revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
+  requireMockClearPermission();
+  offers = [];
   touchQueue();
   return { queue: getQueueState() };
 }
@@ -640,6 +648,12 @@ function findEntry(entryId: string): MockQueueEntry {
 function requireMockModerator(): void {
   if (!getQueueState().viewer.canModerate) {
     throw new Error("Only the broadcaster or moderators can manage the waitlist.");
+  }
+}
+
+function requireMockClearPermission(): void {
+  if (!getQueueState().viewer.permissions.clearQueue) {
+    throw new Error("Only the host broadcaster can clear a shared queue.");
   }
 }
 
