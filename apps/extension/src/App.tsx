@@ -39,6 +39,7 @@ import {
 } from "@dungeon-list/shared";
 import {
   ApiClientError,
+  clearOffers,
   clearQueue,
   getQueue,
   joinQueue,
@@ -534,6 +535,7 @@ export function App({ showCollaborationPanel = false }: { showCollaborationPanel
         <CollaborationPanel
           token={token}
           helixToken={helixToken}
+          queueRevision={queue.revision}
           onQueueIdentityChanged={refreshQueue}
         />
       ) : null}
@@ -772,17 +774,31 @@ export function App({ showCollaborationPanel = false }: { showCollaborationPanel
           ) : null}
         </>
       ) : (
-        <OfferList
-          offers={queue?.offers ?? []}
-          canModerate={Boolean(queue?.viewer.canModerate)}
-          busyAction={busyAction}
-          copiedEntryId={copiedEntryId}
-          dungeons={dungeonOptions}
-          onCopy={copyInvite}
-          onRemove={(offerId) =>
-            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue?.revision))
-          }
-        />
+        <>
+          <OfferList
+            offers={queue?.offers ?? []}
+            canModerate={Boolean(queue?.viewer.canModerate)}
+            busyAction={busyAction}
+            copiedEntryId={copiedEntryId}
+            dungeons={dungeonOptions}
+            onCopy={copyInvite}
+            onRemove={(offerId) =>
+              submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue?.revision))
+            }
+          />
+
+          {queue?.viewer.permissions.clearQueue && queue.offers.length ? (
+            <button
+              className="clear-button"
+              type="button"
+              disabled={busyAction === "clear-offers"}
+              onClick={() => submitModeration("clear-offers", () => clearOffers(token, queue.revision))}
+            >
+              <Trash2 size={16} />
+              Clear available keys
+            </button>
+          ) : null}
+        </>
       )}
     </main>
   );

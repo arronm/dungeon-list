@@ -13,6 +13,7 @@ import type {
 } from "@dungeon-list/shared";
 import {
   isLocalMockRuntime,
+  mockClearOffers,
   mockClearQueue,
   mockCreateCollaborationInvite,
   mockEndCollaboration,
@@ -172,6 +173,17 @@ export function clearQueue(token: string, revision?: string): Promise<QueueState
   }
 
   return request<QueueStateResponse>("/api/moderation/clear", token, {
+    method: "POST",
+    headers: revisionHeader(revision)
+  });
+}
+
+export function clearOffers(token: string, revision?: string): Promise<QueueStateResponse> {
+  if (shouldUseLocalMock(token)) {
+    return mockClearOffers(revision);
+  }
+
+  return request<QueueStateResponse>("/api/moderation/offers/clear", token, {
     method: "POST",
     headers: revisionHeader(revision)
   });

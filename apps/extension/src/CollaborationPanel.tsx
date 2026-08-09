@@ -16,12 +16,14 @@ import { copyToClipboard } from "./clipboard.js";
 interface CollaborationPanelProps {
   token: string;
   helixToken: string;
+  queueRevision: string;
   onQueueIdentityChanged(): Promise<void>;
 }
 
 export function CollaborationPanel({
   token,
   helixToken,
+  queueRevision,
   onQueueIdentityChanged
 }: CollaborationPanelProps) {
   const isLocalMock = token.startsWith("local-dev-token:");
@@ -41,7 +43,7 @@ export function CollaborationPanel({
 
   useEffect(() => {
     refresh().catch((cause) => setError(getMessage(cause)));
-  }, [refresh]);
+  }, [queueRevision, refresh]);
 
   async function run(action: string, callback: () => Promise<void>) {
     setBusy(action);
