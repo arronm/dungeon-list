@@ -60,6 +60,7 @@ import {
 import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
 import { isQueueEventForChannel } from "./queueEvents.js";
 import { CollaborationPanel } from "./CollaborationPanel.js";
+import { copyToClipboard } from "./clipboard.js";
 
 const roleLabels: Record<QueueRole, string> = {
   tank: "Tank",
@@ -1194,31 +1195,6 @@ function getErrorCode(cause: unknown): string | undefined {
   if (cause instanceof ApiClientError) return cause.code;
   if (cause instanceof Error && "code" in cause && typeof cause.code === "string") return cause.code;
   return undefined;
-}
-
-async function copyToClipboard(value: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(value);
-      return;
-    } catch {
-      // Some extension iframe policies reject Clipboard API writes; use the user-activated fallback below.
-    }
-  }
-
-  const input = document.createElement("textarea");
-  input.value = value;
-  input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-
-  if (!copied) {
-    throw new Error("Clipboard write failed.");
-  }
 }
 
 function isNorthAmericanRealm(value: string): value is NorthAmericanRealm {
