@@ -1,4 +1,4 @@
-import type { QueueEvent, QueueStateDto } from "@dungeon-list/shared";
+import type { QueueEvent } from "@dungeon-list/shared";
 import { createExternalPubSubJwt } from "./auth.js";
 
 export interface PubSubConfig {
@@ -12,16 +12,21 @@ export interface PubSubConfig {
 export class TwitchPubSubPublisher {
   constructor(private readonly config: PubSubConfig) {}
 
-  async publishQueueUpdated(queue: QueueStateDto): Promise<boolean> {
+  async publishQueueUpdated(
+    recipientChannelId: string,
+    revision: string,
+    canonicalQueueId?: string
+  ): Promise<boolean> {
     if (!this.config.enabled) {
       return false;
     }
 
     const event: QueueEvent = {
       type: "queue.updated",
-      channelId: queue.channelId,
-      revision: queue.revision
+      recipientChannelId,
+      revision
     };
+    if (canonicalQueueId) event.canonicalQueueId = canonicalQueueId;
 
     const jwtOptions: Parameters<typeof createExternalPubSubJwt>[1] = {
       extensionSecret: this.config.extensionSecret,
@@ -32,7 +37,7 @@ export class TwitchPubSubPublisher {
       jwtOptions.ownerId = this.config.ownerId;
     }
 
-    const token = await createExternalPubSubJwt(queue.channelId, jwtOptions);
+    const token = await createExternalPubSubJwt(recipientChannelId, jwtOptions);
 
     const response = await fetch(this.config.endpoint, {
       method: "POST",
@@ -42,7 +47,7 @@ export class TwitchPubSubPublisher {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        broadcaster_id: queue.channelId,
+        broadcaster_id: recipientChannelId,
         target: ["broadcast"],
         message: JSON.stringify(event)
       })

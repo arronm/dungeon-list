@@ -124,6 +124,12 @@ export function requireQueueManager(principal: ExtensionPrincipal): void {
   }
 }
 
+export function requireBroadcaster(principal: ExtensionPrincipal): void {
+  if (principal.role !== "broadcaster") {
+    throw new ApiError(403, "broadcaster_required", "Only the channel broadcaster can manage collaboration.");
+  }
+}
+
 export function registerAuth(app: FastifyInstance, options: JwtOptions): void {
   app.addHook("preHandler", async (request) => {
     if (!request.url.startsWith("/api/")) {

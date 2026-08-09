@@ -1,6 +1,6 @@
 import { jwtVerify, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
-import { createExternalPubSubJwt, verifyExtensionJwt } from "../src/auth.js";
+import { createExternalPubSubJwt, requireBroadcaster, verifyExtensionJwt } from "../src/auth.js";
 
 const extensionSecret = Buffer.from("test-extension-secret").toString("base64");
 const clientId = "test-client-id";
@@ -74,5 +74,12 @@ describe("Twitch Extension JWT auth", () => {
         send: ["broadcast"]
       }
     });
+  });
+
+  it("requires the exact broadcaster role for collaboration controls", () => {
+    expect(() => requireBroadcaster({ channelId: "1234", role: "broadcaster", token: "token" })).not.toThrow();
+    expect(() => requireBroadcaster({ channelId: "1234", role: "moderator", token: "token" })).toThrowError(
+      expect.objectContaining({ code: "broadcaster_required", statusCode: 403 })
+    );
   });
 });

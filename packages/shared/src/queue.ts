@@ -15,12 +15,16 @@ export const queueRoleSchema = z.enum(queueRoles);
 export const keyIntentSchema = z.enum(keyIntents);
 export const queueEntryStatusSchema = z.enum(queueEntryStatuses);
 export const extensionRoleSchema = z.enum(extensionRoles);
+export const collaborationRoleSchema = z.enum(["standalone", "host", "collaborator"]);
+export const collaborationMemberRoleSchema = z.enum(["host", "collaborator"]);
 export const northAmericanRealmSchema = z.enum(northAmericanRealms);
 
 export type QueueRole = z.infer<typeof queueRoleSchema>;
 export type KeyIntent = z.infer<typeof keyIntentSchema>;
 export type QueueEntryStatus = z.infer<typeof queueEntryStatusSchema>;
 export type ExtensionRole = z.infer<typeof extensionRoleSchema>;
+export type CollaborationRole = z.infer<typeof collaborationRoleSchema>;
+export type CollaborationMemberRole = z.infer<typeof collaborationMemberRoleSchema>;
 
 const selectedRolesSchema = z
   .array(queueRoleSchema)
@@ -70,8 +74,16 @@ export const moveEntryRequestSchema = z.object({
 
 export const queueEventSchema = z.object({
   type: z.literal("queue.updated"),
-  channelId: z.string(),
-  revision: z.string()
+  recipientChannelId: z.string().min(1),
+  canonicalQueueId: z.string().min(1).optional(),
+  revision: z.string().regex(/^\d+$/)
+});
+
+const twitchLoginSchema = z.string().trim().min(1).max(25).regex(/^[A-Za-z0-9_]+$/, "Enter a valid Twitch login.");
+export const collaborationTargetPreviewRequestSchema = z.object({ login: twitchLoginSchema });
+export const createCollaborationInviteRequestSchema = collaborationTargetPreviewRequestSchema;
+export const collaborationCodeRequestSchema = z.object({
+  code: z.string().trim().length(6).regex(/^[A-Za-z0-9]+$/, "Enter the six-character collaboration code.")
 });
 
 export type JoinQueueRequest = z.infer<typeof joinQueueRequestSchema>;
@@ -80,6 +92,9 @@ export type SetQueueSettingsRequest = z.infer<typeof setQueueSettingsRequestSche
 export type SetEntryStatusRequest = z.infer<typeof setEntryStatusRequestSchema>;
 export type MoveEntryRequest = z.infer<typeof moveEntryRequestSchema>;
 export type QueueEvent = z.infer<typeof queueEventSchema>;
+export type CollaborationTargetPreviewRequest = z.infer<typeof collaborationTargetPreviewRequestSchema>;
+export type CreateCollaborationInviteRequest = z.infer<typeof createCollaborationInviteRequestSchema>;
+export type CollaborationCodeRequest = z.infer<typeof collaborationCodeRequestSchema>;
 
 function normalizeSignupRoles<T extends z.ZodTypeAny>(schema: T) {
   return schema
@@ -114,6 +129,11 @@ export interface QueueViewer {
   role: ExtensionRole;
   isLinked: boolean;
   canModerate: boolean;
+  permissions: {
+    moderateEntries: boolean;
+    manageSettings: boolean;
+    clearQueue: boolean;
+  };
   signupDefaults?: {
     realm: string;
     characterName: string;
@@ -142,6 +162,7 @@ export interface QueueEntryDto {
   joinedAt: string;
   updatedAt: string;
   isCurrentViewer: boolean;
+  sourceRole: CollaborationMemberRole | null;
   raiderIo?: RaiderIoSummary | null;
 }
 
@@ -159,6 +180,7 @@ export interface KeyOfferDto {
   createdAt: string;
   updatedAt: string;
   isCurrentViewer: boolean;
+  sourceRole: CollaborationMemberRole | null;
   raiderIo?: RaiderIoSummary | null;
 }
 
@@ -166,10 +188,38 @@ export interface QueueStateDto {
   channelId: string;
   signupsOpen: boolean;
   revision: string;
+  collaboration: null | {
+    role: Exclude<CollaborationRole, "standalone">;
+    hostDisplayName: string;
+    collaboratorDisplayName: string;
+  };
   dungeonCatalog: DungeonCatalogDto;
   viewer: QueueViewer;
   entries: QueueEntryDto[];
   offers: KeyOfferDto[];
+}
+
+export type CollaborationStateDto =
+  | { state: "standalone" }
+  | {
+      state: "pending-host-invite";
+      collaboratorDisplayName: string;
+      code: string;
+      expiresAt: string;
+    }
+  | {
+      state: "active";
+      role: Exclude<CollaborationRole, "standalone">;
+      hostDisplayName: string;
+      collaboratorDisplayName: string;
+    };
+
+export interface CollaborationStateResponse { collaboration: CollaborationStateDto; }
+export interface CollaborationTargetPreviewResponse {
+  target: { displayName: string };
+}
+export interface CollaborationInvitePreviewResponse {
+  invite: { hostDisplayName: string };
 }
 
 export interface ApiErrorResponse {

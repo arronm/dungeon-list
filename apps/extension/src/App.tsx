@@ -35,8 +35,7 @@ import {
   type QueueStateDto,
   getMythicPlusDungeonShortName,
   northAmericanRealms,
-  queueRoles,
-  queueEventSchema
+  queueRoles
 } from "@dungeon-list/shared";
 import {
   ApiClientError,
@@ -59,6 +58,8 @@ import {
   isMatchableKeyRequest
 } from "./keyMatching.js";
 import { requestIdentityShare, useTwitchAuth } from "./twitch.js";
+import { isQueueEventForChannel } from "./queueEvents.js";
+import { CollaborationPanel } from "./CollaborationPanel.js";
 
 const roleLabels: Record<QueueRole, string> = {
   tank: "Tank",
@@ -89,7 +90,7 @@ const keyAvailabilityLabels: Record<KeyAvailability, string> = {
 const queuePollIntervalMs = 15_000;
 const noDungeonOptions: readonly DungeonOptionDto[] = [];
 
-export function App() {
+export function App({ showCollaborationPanel = false }: { showCollaborationPanel?: boolean } = {}) {
   const twitch = useTwitchAuth();
   const token = twitch.authorization?.token;
   const helixToken = twitch.authorization?.helixToken;
@@ -217,13 +218,7 @@ export function App() {
     }
 
     const listener = (_target: string, _contentType: string, message: string) => {
-      const payload = parsePubSubPayload(message);
-      if (!payload) {
-        return;
-      }
-
-      const parsed = queueEventSchema.safeParse(payload);
-      if (parsed.success && parsed.data.channelId === twitch.authorization?.channelId) {
+      if (isQueueEventForChannel(message, twitch.authorization?.channelId)) {
         refreshQueue().catch((cause) => setError(errorMessage(cause)));
       }
     };
@@ -376,8 +371,16 @@ export function App() {
 
   function submitModeration(action: string, callback: () => Promise<{ queue: QueueStateDto }>) {
     void runAction(action, async () => {
-      const response = await callback();
-      applyActionQueue(response.queue);
+      try {
+        const response = await callback();
+        applyActionQueue(response.queue);
+      } catch (cause) {
+        if (getErrorCode(cause) === "stale_queue_revision") {
+          await refreshQueue();
+          return;
+        }
+        throw cause;
+      }
     });
   }
 
@@ -457,16 +460,16 @@ export function App() {
             onCopy={copyInvite}
             onStatus={(entryId, status) =>
               submitModeration(`status:${entryId}:${status}`, () =>
-                updateEntryStatus(token, entryId, { status })
+                updateEntryStatus(token, entryId, { status }, queue.revision)
               )
             }
             onMove={(entryId, direction) =>
               submitModeration(`move:${entryId}:${direction}`, () =>
-                moveEntry(token, entryId, { direction })
+                moveEntry(token, entryId, { direction }, queue.revision)
               )
             }
             onRemove={(entryId) =>
-              submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId))
+              submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId, queue.revision))
             }
           />
         </section>
@@ -484,7 +487,7 @@ export function App() {
           emptyMessage={formatNoAvailableKeys(selectedEntry, dungeonOptions)}
           onCopy={copyInvite}
           onRemove={(offerId) =>
-            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
+            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue.revision))
           }
         />
       </main>
@@ -499,7 +502,7 @@ export function App() {
           <p>{queue?.signupsOpen ? "Signups open" : "Signups closed"}</p>
         </div>
         <div className="top-actions">
-          {queue?.viewer.canModerate ? (
+          {queue?.viewer.permissions.manageSettings ? (
             <button
               className="icon-button"
               type="button"
@@ -507,7 +510,7 @@ export function App() {
               disabled={Boolean(busyAction)}
               onClick={() =>
                 submitModeration("settings", () =>
-                  updateQueueSettings(token, { signupsOpen: !queue.signupsOpen })
+                  updateQueueSettings(token, { signupsOpen: !queue.signupsOpen }, queue.revision)
                 )
               }
             >
@@ -526,7 +529,22 @@ export function App() {
         </div>
       </header>
 
+      {showCollaborationPanel && helixToken && queue?.viewer.role === "broadcaster" ? (
+        <CollaborationPanel
+          token={token}
+          helixToken={helixToken}
+          onQueueIdentityChanged={refreshQueue}
+        />
+      ) : null}
+
       {error ? <div className="notice error">{error}</div> : null}
+
+      {queue?.collaboration ? (
+        <section className="shared-banner">
+          <strong>Shared queue: {queue.collaboration.hostDisplayName} + {queue.collaboration.collaboratorDisplayName}</strong>
+          <p>Both streamers can manage submissions. If the collaboration ends, submissions return to their source channel.</p>
+        </section>
+      ) : null}
 
       {queue && !queue.viewer.isLinked ? (
         <section className="identity-panel">
@@ -717,13 +735,13 @@ export function App() {
             onCopy={copyInvite}
             onStatus={(entryId, status) =>
               submitModeration(`status:${entryId}:${status}`, () =>
-                updateEntryStatus(token, entryId, { status })
+                updateEntryStatus(token, entryId, { status }, queue?.revision)
               )
             }
             onMove={(entryId, direction) =>
-              submitModeration(`move:${entryId}:${direction}`, () => moveEntry(token, entryId, { direction }))
+              submitModeration(`move:${entryId}:${direction}`, () => moveEntry(token, entryId, { direction }, queue?.revision))
             }
-            onRemove={(entryId) => submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId))}
+            onRemove={(entryId) => submitModeration(`remove:${entryId}`, () => removeEntry(token, entryId, queue?.revision))}
           />
 
           {completedEntries.length ? (
@@ -740,12 +758,12 @@ export function App() {
             </section>
           ) : null}
 
-          {queue?.viewer.canModerate && queue.entries.length ? (
+          {queue?.viewer.permissions.clearQueue && queue.entries.length ? (
             <button
               className="clear-button"
               type="button"
               disabled={busyAction === "clear"}
-              onClick={() => submitModeration("clear", () => clearQueue(token))}
+              onClick={() => submitModeration("clear", () => clearQueue(token, queue.revision))}
             >
               <Trash2 size={16} />
               Clear queue
@@ -761,7 +779,7 @@ export function App() {
           dungeons={dungeonOptions}
           onCopy={copyInvite}
           onRemove={(offerId) =>
-            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId))
+            submitModeration(`remove-offer:${offerId}`, () => removeOffer(token, offerId, queue?.revision))
           }
         />
       )}
@@ -875,6 +893,7 @@ function OfferList({
                 <div className="entry-line">
                   <strong title={label}>{label}</strong>
                   <RoleBadges entry={offer} />
+                  {canModerate ? <SourceBadge sourceRole={offer.sourceRole} /> : null}
                 </div>
                 <div className="character-line">
                   <p title={`${offer.characterName}${offer.realm ? ` - ${offer.realm}` : ""}`}>
@@ -1064,6 +1083,7 @@ function EntrySummary({
             <strong title={label}>{label}</strong>
           )}
           <RoleBadges entry={entry} />
+          {showRaiderIo ? <SourceBadge sourceRole={entry.sourceRole} /> : null}
           <span className={`status ${entry.status}`}>{statusLabels[entry.status]}</span>
         </div>
         {entry.characterName || entry.realm ? (
@@ -1102,6 +1122,11 @@ function RoleBadges({
       ))}
     </span>
   );
+}
+
+function SourceBadge({ sourceRole }: { sourceRole: QueueEntryDto["sourceRole"] }) {
+  if (!sourceRole) return null;
+  return <span className={`source-badge ${sourceRole}`}>{sourceRole === "host" ? "Host" : "Collaborator"}</span>;
 }
 
 function formatKeyNeed(
@@ -1165,12 +1190,10 @@ function errorMessage(cause: unknown): string {
   return "Something went wrong.";
 }
 
-function parsePubSubPayload(message: string): unknown {
-  try {
-    return JSON.parse(message);
-  } catch {
-    return undefined;
-  }
+function getErrorCode(cause: unknown): string | undefined {
+  if (cause instanceof ApiClientError) return cause.code;
+  if (cause instanceof Error && "code" in cause && typeof cause.code === "string") return cause.code;
+  return undefined;
 }
 
 async function copyToClipboard(value: string): Promise<void> {

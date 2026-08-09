@@ -39,4 +39,20 @@ describe("TwitchUserClient", () => {
       code: "twitch_user_lookup_failed"
     });
   });
+
+  it("resolves a broadcaster login to an immutable Twitch ID and trusted display name", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: "2468", login: "dungeonhost", display_name: "DungeonHost" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    const client = new TwitchUserClient("extension-client", fetchImpl);
+
+    await expect(client.getUserByLogin("DungeonHost", "helix-jwt")).resolves.toEqual({
+      id: "2468",
+      displayName: "DungeonHost"
+    });
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe("https://api.twitch.tv/helix/users?login=dungeonhost");
+  });
 });

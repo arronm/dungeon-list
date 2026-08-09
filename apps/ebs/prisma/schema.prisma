@@ -20,51 +20,66 @@ enum QueueEntryStatus {
   skipped
 }
 
+enum CollaborationMemberRole {
+  host
+  collaborator
+}
+
 model Channel {
-  id                String                   @id @map("twitch_channel_id")
-  signupsOpen       Boolean                  @default(true) @map("signups_open")
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  updatedAt         DateTime                 @updatedAt @map("updated_at")
-  entries           QueueEntry[]
-  offers            KeyOffer[]
-  signupPreferences ViewerSignupPreference[]
-  events            QueueEvent[]
+  id                       String                       @id @map("twitch_channel_id")
+  signupsOpen              Boolean                      @default(true) @map("signups_open")
+  revision                 BigInt                       @default(0)
+  createdAt                DateTime                     @default(now()) @map("created_at")
+  updatedAt                DateTime                     @updatedAt @map("updated_at")
+  entries                  QueueEntry[]
+  offers                   KeyOffer[]
+  signupPreferences        ViewerSignupPreference[]
+  events                   QueueEvent[]
+  collaborationMemberships CollaborationMembership[]
+  hostedCollaborations     Collaboration[]              @relation("CollaborationHost")
+  hostedInvites            CollaborationInvite[]        @relation("InviteHost")
+  targetedInvites          CollaborationInvite[]        @relation("InviteTarget")
+  failedInviteAttempts     CollaborationInviteAttempt[]
 
   @@map("channels")
 }
 
 model QueueEntry {
-  id           String           @id @default(cuid())
-  channelId    String           @map("channel_id")
-  twitchUserId String           @map("twitch_user_id")
-  displayName  String?          @map("display_name")
-  role         QueueEntryRole
-  note         String           @default("")
-  status       QueueEntryStatus @default(waiting)
-  position     Int
-  joinedAt     DateTime         @default(now()) @map("joined_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
-  channel      Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  id                    String           @id @default(cuid())
+  channelId             String           @map("channel_id")
+  submittedViaChannelId String           @map("submitted_via_channel_id")
+  twitchUserId          String           @map("twitch_user_id")
+  displayName           String?          @map("display_name")
+  role                  QueueEntryRole
+  note                  String           @default("")
+  status                QueueEntryStatus @default(waiting)
+  position              Int
+  joinedAt              DateTime         @default(now()) @map("joined_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  channel               Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // Active-entry uniqueness is enforced by a partial index in the SQL migration.
   @@index([channelId, twitchUserId])
   @@index([channelId, status, position])
+  @@index([channelId, submittedViaChannelId, status, position])
   @@map("queue_entries")
 }
 
 model KeyOffer {
-  id           String         @id @default(cuid())
-  channelId    String         @map("channel_id")
-  twitchUserId String         @map("twitch_user_id")
-  displayName  String?        @map("display_name")
-  role         QueueEntryRole
-  note         String         @default("")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
-  channel      Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  id                    String         @id @default(cuid())
+  channelId             String         @map("channel_id")
+  submittedViaChannelId String         @map("submitted_via_channel_id")
+  twitchUserId          String         @map("twitch_user_id")
+  displayName           String?        @map("display_name")
+  role                  QueueEntryRole
+  note                  String         @default("")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  channel               Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([channelId, createdAt])
   @@index([channelId, twitchUserId])
+  @@index([channelId, submittedViaChannelId])
   @@map("key_offers")
 }
 
@@ -85,6 +100,7 @@ model QueueEvent {
   channelId         String   @map("channel_id")
   entryId           String?  @map("entry_id")
   actorTwitchUserId String?  @map("actor_twitch_user_id")
+  actorChannelId    String   @map("actor_channel_id")
   actorRole         String   @map("actor_role")
   action            String
   metadata          Json?
@@ -93,4 +109,61 @@ model QueueEvent {
 
   @@index([channelId, createdAt])
   @@map("queue_events")
+}
+
+model Collaboration {
+  id            String                    @id @default(cuid())
+  hostChannelId String                    @map("host_channel_id")
+  startedAt     DateTime                  @default(now()) @map("started_at")
+  endedAt       DateTime?                 @map("ended_at")
+  host          Channel                   @relation("CollaborationHost", fields: [hostChannelId], references: [id], onDelete: Restrict)
+  memberships   CollaborationMembership[]
+
+  @@index([hostChannelId, endedAt])
+  @@map("collaborations")
+}
+
+model CollaborationMembership {
+  id              String                  @id @default(cuid())
+  collaborationId String                  @map("collaboration_id")
+  channelId       String                  @map("channel_id")
+  role            CollaborationMemberRole
+  displayName     String                  @map("display_name")
+  joinedAt        DateTime                @default(now()) @map("joined_at")
+  leftAt          DateTime?               @map("left_at")
+  collaboration   Collaboration           @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  channel         Channel                 @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
+  @@index([collaborationId, leftAt])
+  @@index([channelId, leftAt])
+  @@map("collaboration_memberships")
+}
+
+model CollaborationInvite {
+  id                      String    @id @default(cuid())
+  hostChannelId           String    @map("host_channel_id")
+  collaboratorChannelId   String    @map("collaborator_channel_id")
+  hostDisplayName         String    @map("host_display_name")
+  collaboratorDisplayName String    @map("collaborator_display_name")
+  code                    String?   @unique
+  createdAt               DateTime  @default(now()) @map("created_at")
+  expiresAt               DateTime  @map("expires_at")
+  consumedAt              DateTime? @map("consumed_at")
+  revokedAt               DateTime? @map("revoked_at")
+  host                    Channel   @relation("InviteHost", fields: [hostChannelId], references: [id], onDelete: Cascade)
+  collaborator            Channel   @relation("InviteTarget", fields: [collaboratorChannelId], references: [id], onDelete: Cascade)
+
+  @@index([hostChannelId, createdAt])
+  @@index([collaboratorChannelId, createdAt])
+  @@map("collaboration_invites")
+}
+
+model CollaborationInviteAttempt {
+  id          String   @id @default(cuid())
+  channelId   String   @map("channel_id")
+  attemptedAt DateTime @default(now()) @map("attempted_at")
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, attemptedAt])
+  @@map("collaboration_invite_attempts")
 }

@@ -101,6 +101,7 @@ function createRequest(overrides: Partial<QueueEntryDto> = {}): QueueEntryDto {
     joinedAt: "2026-07-30T00:00:00.000Z",
     updatedAt: "2026-07-30T00:00:00.000Z",
     isCurrentViewer: false,
+    sourceRole: null,
     ...overrides
   };
 }
@@ -118,6 +119,7 @@ function createOffer(id: string, dungeon: string, keyLevel: number): KeyOfferDto
     keyLevel,
     createdAt: "2026-07-30T00:00:00.000Z",
     updatedAt: "2026-07-30T00:00:00.000Z",
-    isCurrentViewer: false
+    isCurrentViewer: false,
+    sourceRole: null
   };
 }

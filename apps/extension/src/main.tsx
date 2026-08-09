@@ -1,23 +1,29 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App.js";
+import { LiveConfigApp } from "./LiveConfigApp.js";
+import { isLiveConfigView } from "./view.js";
 import "./styles.css";
 
 const rootElement = document.getElementById("root");
 
 function renderFatalError(error: unknown) {
-  if (!rootElement) {
-    return;
-  }
+  if (document.getElementById("fatal-error-overlay")) return;
 
-  const message = error instanceof Error ? error.message : "The extension failed before it could render.";
-  rootElement.innerHTML = `
-    <main class="shell centered">
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string" && error
+      ? error
+      : "The extension failed before it could render.";
+  const overlay = document.createElement("div");
+  overlay.id = "fatal-error-overlay";
+  overlay.className = "fatal-error-overlay";
+  overlay.innerHTML = `
       <div class="notice error">
         Dungeon List failed to load: ${escapeHtml(message)}
       </div>
-    </main>
   `;
+  document.body.appendChild(overlay);
 }
 
 window.addEventListener("error", (event) => {
@@ -33,9 +39,10 @@ try {
     throw new Error("Missing #root element.");
   }
 
+  const isLiveConfig = isLiveConfigView(window.location.search);
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <App />
+      {isLiveConfig ? <LiveConfigApp /> : <App />}
     </React.StrictMode>
   );
 } catch (error) {
