@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   canModerateRole,
+  collaborationCodeRequestSchema,
+  collaborationTargetPreviewRequestSchema,
   getCharacterIdentityKey,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
+  queueEventSchema,
   setEntryStatusRequestSchema
 } from "./queue.js";
 import {
@@ -158,6 +161,18 @@ describe("queue schemas", () => {
     expect(canModerateRole("viewer")).toBe(false);
     expect(canModerateRole("moderator")).toBe(true);
     expect(canModerateRole("broadcaster")).toBe(true);
+  });
+
+  it("validates bound invite inputs and recipient-scoped queue events", () => {
+    expect(collaborationTargetPreviewRequestSchema.parse({ login: "Dungeon_Host" })).toEqual({ login: "Dungeon_Host" });
+    expect(collaborationCodeRequestSchema.parse({ code: " h5ko2j " })).toEqual({ code: "h5ko2j" });
+    expect(() => collaborationTargetPreviewRequestSchema.parse({ login: "bad login" })).toThrow();
+    expect(queueEventSchema.parse({
+      type: "queue.updated",
+      recipientChannelId: "collaborator-channel",
+      canonicalQueueId: "host-channel",
+      revision: "9223372036854775806"
+    })).toMatchObject({ recipientChannelId: "collaborator-channel" });
   });
 
   it("validates and formats an EBS-provided dungeon catalog", () => {

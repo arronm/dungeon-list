@@ -8,6 +8,7 @@ Create a new Extension in the Twitch Developer Console:
 
 - Type: **Component**
 - Video - Component viewer path: `index.html`
+- Live Config path: `index.html?view=live-config`
 - Autoscale: **Disabled** (the UI is responsive; a fixed Scale Pixels value shrinks it)
 - Backend URL allowlist: the public HTTPS origin for the EBS
 - Local test base URI: the HTTPS URL that serves `apps/extension`
@@ -71,7 +72,13 @@ http://localhost:5173/?mockRole=moderator
 http://localhost:5173/?mockRole=viewer
 http://localhost:5173/?mockRole=viewer&mockLinked=false
 http://localhost:5173/?mockTheme=light
+http://localhost:5173/?view=live-config&mockCollaboration=pending
+http://localhost:5173/?view=live-config&mockCollaboration=host
+http://localhost:5173/?view=live-config&mockCollaboration=collaborator
 ```
+
+The local Live Config mock uses `HOST42` for the deterministic invite preview and join flow.
+Live Config keeps the complete broadcaster queue manager visible. Collaboration controls appear as a compact expandable module above the queue.
 
 For real Twitch testing, expose both services over HTTPS and configure the Twitch Extension local test settings to point at the frontend URL. The extension frontend calls the EBS through `VITE_EBS_BASE_URL`, so that URL must also be allowed in the Twitch Extension Console.
 

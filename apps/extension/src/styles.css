@@ -34,6 +34,16 @@ body {
   min-height: 0;
 }
 
+.fatal-error-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  background: #16191d;
+}
+
 button,
 input,
 select {
@@ -221,6 +231,151 @@ h2 {
   padding: 8px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.shared-banner,
+.config-card {
+  margin-bottom: 8px;
+  border: 1px solid rgba(92, 71, 255, 0.45);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(92, 71, 255, 0.14);
+}
+
+.shared-banner p,
+.config-card p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(246, 242, 234, 0.72);
+}
+
+.source-badge {
+  border-radius: 999px;
+  padding: 2px 5px;
+  background: rgba(92, 71, 255, 0.25);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.source-badge.collaborator { background: rgba(25, 169, 116, 0.24); }
+
+.collaboration-module {
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(92, 71, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(92, 71, 255, 0.12);
+}
+
+.collaboration-toggle {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  justify-content: initial;
+  gap: 8px;
+  border-radius: 0;
+  padding: 8px 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.collaboration-toggle-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(92, 71, 255, 0.3);
+}
+
+.collaboration-toggle-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.collaboration-toggle-copy span {
+  overflow: hidden;
+  color: rgba(246, 242, 234, 0.72);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collaboration-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.config-card,
+.collaboration-state-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin: 0;
+}
+
+.config-card h2 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: none;
+}
+
+.config-card label span,
+.eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.confirmation {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 8px;
+}
+
+.invite-code {
+  width: 100%;
+  min-height: 48px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 20px;
+  letter-spacing: 0.22em;
+}
+
+.code-input {
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.active-collaboration {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+:root[data-theme="light"] .collaboration-toggle-copy span {
+  color: rgba(35, 31, 32, 0.68);
+}
+
+@media (max-width: 560px) {
+  .config-grid,
+  .active-collaboration {
+    grid-template-columns: 1fr;
+  }
 }
 
 .error {

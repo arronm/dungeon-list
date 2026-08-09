@@ -193,6 +193,7 @@ function createEntry(overrides: Partial<QueueEntry> = {}): QueueEntry {
   return {
     id: "entry-1",
     channelId: "channel-1",
+    submittedViaChannelId: "channel-1",
     twitchUserId: "viewer-1",
     displayName: "QueueViewer",
     role: "dps",
@@ -210,6 +211,7 @@ function createOffer(overrides: Partial<KeyOffer> = {}): KeyOffer {
   return {
     id: "offer-1",
     channelId: "channel-1",
+    submittedViaChannelId: "channel-1",
     twitchUserId: "viewer-1",
     displayName: "QueueViewer",
     role: "dps",
@@ -231,14 +233,15 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     characterName: string;
     updatedAt: Date;
   } | null = null;
-  let revision = 0;
+  let timestampCounter = 0;
   const channel = {
     id: "channel-1",
     signupsOpen: true,
+    revision: 0n,
     createdAt: new Date("2026-07-18T19:00:00.000Z"),
     updatedAt: new Date("2026-07-18T20:00:00.000Z")
   };
-  const nextTimestamp = () => new Date(Date.UTC(2026, 6, 18, 21, 0, revision++));
+  const nextTimestamp = () => new Date(Date.UTC(2026, 6, 18, 21, 0, timestampCounter++));
 
   const queueEntry = {
     findFirst: vi.fn(async ({ where }: any) =>
@@ -350,7 +353,8 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
   const transaction = {
     channel: {
       upsert: vi.fn(async () => channel),
-      update: vi.fn(async () => {
+      update: vi.fn(async ({ data }: any) => {
+        if (data.revision?.increment) channel.revision += BigInt(data.revision.increment);
         channel.updatedAt = nextTimestamp();
         return channel;
       })
@@ -361,6 +365,9 @@ function createTestDatabase(initialEntries: QueueEntry[]) {
     queueEvent: {
       create: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 }))
+    },
+    collaborationMembership: {
+      findFirst: vi.fn(async () => null)
     }
   };
 

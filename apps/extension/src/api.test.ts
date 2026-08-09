@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearQueue, getQueue, joinQueue, leaveQueue, offerKey, removeOffer } from "./api.js";
+import {
+  clearQueue,
+  createCollaborationInvite,
+  getCollaboration,
+  getQueue,
+  joinQueue,
+  leaveQueue,
+  offerKey,
+  removeOffer,
+  updateEntryStatus
+} from "./api.js";
 
 describe("extension API client", () => {
   afterEach(() => {
@@ -86,6 +96,38 @@ describe("extension API client", () => {
     expect(init?.method).toBe("DELETE");
     expect(init?.body).toBeUndefined();
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+
+  it("sends the observed revision with shared moderation mutations", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateEntryStatus("extension-jwt", "entry-1", { status: "invited" }, "9223372036854775806");
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(new Headers(init?.headers).get("X-Queue-Revision")).toBe("9223372036854775806");
+  });
+
+  it("uses the broadcaster collaboration endpoints and Helix JWT", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ collaboration: { state: "standalone" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ collaboration: { state: "pending-host-invite" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCollaboration("extension-jwt");
+    await createCollaborationInvite("extension-jwt", "helix-jwt", { login: "party_partner" });
+
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/collaboration");
+    const [path, init] = fetchMock.mock.calls[1]!;
+    expect(path).toBe("/api/collaboration/invites");
+    expect(new Headers(init?.headers).get("X-Twitch-Helix-Token")).toBe("helix-jwt");
+    expect(JSON.parse(String(init?.body))).toEqual({ login: "party_partner" });
   });
 
   it.each([

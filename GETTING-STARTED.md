@@ -139,6 +139,7 @@ In Twitch **Asset Hosting**, use:
 Testing Base URI: http://localhost:5173/
 Video - Component Viewer Path: index.html
 Config Path: index.html
+Live Config Path: index.html?view=live-config
 ```
 
 When using HTTP localhost in Chrome, enable `chrome://flags/#allow-insecure-localhost` and restart Chrome. Otherwise, use an HTTPS tunnel; Twitch is served over HTTPS and the browser can reject an insecure extension iframe.

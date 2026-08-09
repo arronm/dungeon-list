@@ -1,13 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import {
+  collaborationCodeRequestSchema,
+  collaborationTargetPreviewRequestSchema,
+  createCollaborationInviteRequestSchema,
   joinQueueRequestSchema,
   moveEntryRequestSchema,
   offerKeyRequestSchema,
   setEntryStatusRequestSchema,
   setQueueSettingsRequestSchema
 } from "@dungeon-list/shared";
-import { getPrincipal, requireLinkedViewer, requireQueueManager } from "./auth.js";
+import { getPrincipal, requireBroadcaster, requireLinkedViewer, requireQueueManager } from "./auth.js";
 import { requireCurrentDungeon } from "./dungeonCatalog.js";
 import { ApiError } from "./errors.js";
 import type { TwitchPubSubPublisher } from "./pubsub.js";
@@ -77,15 +80,22 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     return { ...queue, entries, offers };
   }
 
-  async function publishMutation(queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>, app: FastifyInstance) {
+  async function publishInvalidation(
+    recipientChannelId: string,
+    revision: string,
+    canonicalQueueId: string
+  ): Promise<void> {
     try {
-      const published = await pubsub.publishQueueUpdated(queue);
-      if (!published) {
-        app.log.debug({ channelId: queue.channelId }, "queue mutation completed without PubSub publish");
-      }
+      const published = await pubsub.publishQueueUpdated(recipientChannelId, revision, canonicalQueueId);
+      if (!published) app.log.debug({ recipientChannelId }, "queue mutation completed without PubSub publish");
     } catch (error) {
-      app.log.error({ error }, "failed to publish queue update");
+      app.log.error({ error, recipientChannelId }, "failed to publish queue update");
     }
+  }
+
+  async function publishMutation(queue: Awaited<ReturnType<QueueRepository["getQueueState"]>>, app: FastifyInstance) {
+    const recipients = await repository.getQueueRecipients(queue.channelId);
+    await Promise.all(recipients.map((recipient) => publishInvalidation(recipient, queue.revision, queue.channelId)));
 
     return { queue: await enrichQueueWithRaiderIo(queue) };
   }
@@ -139,7 +149,7 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
   app.delete("/api/offers/:offerId", async (request) => {
     const principal = getPrincipal(request);
     const { offerId } = request.params as { offerId: string };
-    const queue = await repository.removeOffer(principal, offerId);
+    const queue = await repository.removeOffer(principal, offerId, getQueueRevision(request));
     return publishMutation(queue, app);
   });
 
@@ -148,7 +158,7 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     requireQueueManager(principal);
     const { entryId } = request.params as { entryId: string };
     const input = setEntryStatusRequestSchema.parse(request.body);
-    const queue = await repository.setEntryStatus(principal, entryId, input.status);
+    const queue = await repository.setEntryStatus(principal, entryId, input.status, getQueueRevision(request));
     return publishMutation(queue, app);
   });
 
@@ -157,7 +167,7 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     requireQueueManager(principal);
     const { entryId } = request.params as { entryId: string };
     const input = moveEntryRequestSchema.parse(request.body);
-    const queue = await repository.moveEntry(principal, entryId, input);
+    const queue = await repository.moveEntry(principal, entryId, input, getQueueRevision(request));
     return publishMutation(queue, app);
   });
 
@@ -165,14 +175,14 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     const principal = getPrincipal(request);
     requireQueueManager(principal);
     const { entryId } = request.params as { entryId: string };
-    const queue = await repository.removeEntry(principal, entryId);
+    const queue = await repository.removeEntry(principal, entryId, getQueueRevision(request));
     return publishMutation(queue, app);
   });
 
   app.post("/api/moderation/clear", async (request) => {
     const principal = getPrincipal(request);
     requireQueueManager(principal);
-    const queue = await repository.clear(principal);
+    const queue = await repository.clear(principal, getQueueRevision(request));
     return publishMutation(queue, app);
   });
 
@@ -180,9 +190,101 @@ export function registerRoutes(app: FastifyInstance, dependencies: RouteDependen
     const principal = getPrincipal(request);
     requireQueueManager(principal);
     const input = setQueueSettingsRequestSchema.parse(request.body);
-    const queue = await repository.setSettings(principal, input);
+    const queue = await repository.setSettings(principal, input, getQueueRevision(request));
     return publishMutation(queue, app);
   });
+
+  app.get("/api/collaboration", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const collaboration = await repository.getCollaborationState(principal);
+    return { collaboration };
+  });
+
+  app.post("/api/collaboration/targets/preview", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const input = collaborationTargetPreviewRequestSchema.parse(request.body);
+    const target = await twitchUsers.getUserByLogin(input.login, requireHelixToken(request));
+    await repository.validateCollaborationTarget(principal, target.id);
+    return { target: { displayName: target.displayName } };
+  });
+
+  app.post("/api/collaboration/invites", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const input = createCollaborationInviteRequestSchema.parse(request.body);
+    const helixToken = requireHelixToken(request);
+    const [target, hostDisplayName] = await Promise.all([
+      twitchUsers.getUserByLogin(input.login, helixToken),
+      twitchUsers.getDisplayName(principal.channelId, helixToken)
+    ]);
+    const collaboration = await repository.createCollaborationInvite(principal, {
+      channelId: target.id,
+      displayName: target.displayName
+    }, hostDisplayName);
+    return { collaboration };
+  });
+
+  app.delete("/api/collaboration/invites", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const collaboration = await repository.revokeCollaborationInvite(principal);
+    return { collaboration };
+  });
+
+  app.post("/api/collaboration/invites/preview", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const input = collaborationCodeRequestSchema.parse(request.body);
+    const invite = await repository.previewCollaborationInvite(principal, input);
+    return { invite };
+  });
+
+  app.post("/api/collaboration/join", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const result = await repository.joinCollaboration(
+      principal,
+      collaborationCodeRequestSchema.parse(request.body)
+    );
+    await Promise.all(result.invalidations.map((invalidation) => publishInvalidation(
+      invalidation.recipientChannelId,
+      invalidation.revision,
+      invalidation.canonicalQueueId
+    )));
+    return { collaboration: result.collaboration };
+  });
+
+  app.post("/api/collaboration/leave", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const result = await repository.splitCollaboration(principal, "collaborator");
+    await Promise.all(result.invalidations.map((invalidation) => publishInvalidation(
+      invalidation.recipientChannelId,
+      invalidation.revision,
+      invalidation.canonicalQueueId
+    )));
+    return { collaboration: result.collaboration };
+  });
+
+  app.post("/api/collaboration/end", async (request) => {
+    const principal = getPrincipal(request);
+    requireBroadcaster(principal);
+    const result = await repository.splitCollaboration(principal, "host");
+    await Promise.all(result.invalidations.map((invalidation) => publishInvalidation(
+      invalidation.recipientChannelId,
+      invalidation.revision,
+      invalidation.canonicalQueueId
+    )));
+    return { collaboration: result.collaboration };
+  });
+}
+
+function getQueueRevision(request: { headers: Record<string, unknown> }): string | undefined {
+  const value = request.headers["x-queue-revision"];
+  return typeof value === "string" && /^\d+$/.test(value) ? value : undefined;
 }
 
 function getHelixToken(request: { headers: Record<string, unknown> }): string | undefined {
@@ -201,6 +303,7 @@ function requireHelixToken(request: { headers: Record<string, unknown> }): strin
 export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) {
+      if (error.retryAfter !== undefined) reply.header("Retry-After", String(error.retryAfter));
       return reply.status(error.statusCode).send({
         error: {
           code: error.code,

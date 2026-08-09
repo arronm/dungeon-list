@@ -1,6 +1,8 @@
 import {
   anyMythicPlusDungeon,
   canModerateRole,
+  collaborationCodeRequestSchema,
+  collaborationTargetPreviewRequestSchema,
   dungeonCatalogSchema,
   getCharacterIdentityKey,
   isDungeonInCatalog,
@@ -10,6 +12,9 @@ import {
   setEntryStatusRequestSchema,
   setQueueSettingsRequestSchema,
   type ExtensionRole,
+  type CollaborationCodeRequest,
+  type CollaborationStateDto,
+  type CollaborationTargetPreviewRequest,
   type JoinQueueRequest,
   type KeyOfferDto,
   type MoveEntryRequest,
@@ -46,6 +51,7 @@ interface MockKeyOffer extends KeyOfferDto {
 
 let mockLinked = getInitialLinkedState();
 let mockRevision = 1;
+let collaborationState: CollaborationStateDto = getInitialCollaborationState();
 let signupsOpen = true;
 let signupDefaults: NonNullable<QueueStateDto["viewer"]["signupDefaults"]> = {
   realm: "Maelstrom",
@@ -145,7 +151,7 @@ export function getLocalMockContext(): LocalMockContext | undefined {
   return {
     theme: getMockTheme(),
     language: "en",
-    mode: "viewer"
+    mode: new URLSearchParams(window.location.search).get("view") === "live-config" ? "config" : "viewer"
   };
 }
 
@@ -277,7 +283,8 @@ export async function mockOfferKey(body: OfferKeyRequest): Promise<{ queue: Queu
   return { queue: getQueueState() };
 }
 
-export async function mockRemoveOffer(offerId: string): Promise<{ queue: QueueStateDto }> {
+export async function mockRemoveOffer(offerId: string, revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   const viewer = getQueueState().viewer;
   const offer = offers.find((candidate) => candidate.id === offerId);
   if (!offer) {
@@ -295,8 +302,10 @@ export async function mockRemoveOffer(offerId: string): Promise<{ queue: QueueSt
 
 export async function mockUpdateEntryStatus(
   entryId: string,
-  body: SetEntryStatusRequest
+  body: SetEntryStatusRequest,
+  revision?: string
 ): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   requireMockModerator();
   const input = setEntryStatusRequestSchema.parse(body);
   const entry = findEntry(entryId);
@@ -307,7 +316,8 @@ export async function mockUpdateEntryStatus(
   return { queue: getQueueState() };
 }
 
-export async function mockMoveEntry(entryId: string, body: MoveEntryRequest): Promise<{ queue: QueueStateDto }> {
+export async function mockMoveEntry(entryId: string, body: MoveEntryRequest, revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   requireMockModerator();
   const input = moveEntryRequestSchema.parse(body);
   const activeEntries = entries
@@ -331,7 +341,8 @@ export async function mockMoveEntry(entryId: string, body: MoveEntryRequest): Pr
   return { queue: getQueueState() };
 }
 
-export async function mockRemoveEntry(entryId: string): Promise<{ queue: QueueStateDto }> {
+export async function mockRemoveEntry(entryId: string, revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   requireMockModerator();
   findEntry(entryId);
   entries = entries.filter((entry) => entry.id !== entryId);
@@ -340,14 +351,16 @@ export async function mockRemoveEntry(entryId: string): Promise<{ queue: QueueSt
   return { queue: getQueueState() };
 }
 
-export async function mockClearQueue(): Promise<{ queue: QueueStateDto }> {
+export async function mockClearQueue(revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   requireMockModerator();
   entries = [];
   touchQueue();
   return { queue: getQueueState() };
 }
 
-export async function mockUpdateQueueSettings(body: SetQueueSettingsRequest): Promise<{ queue: QueueStateDto }> {
+export async function mockUpdateQueueSettings(body: SetQueueSettingsRequest, revision?: string): Promise<{ queue: QueueStateDto }> {
+  requireMockRevision(revision);
   requireMockModerator();
   const input = setQueueSettingsRequestSchema.parse(body);
   signupsOpen = input.signupsOpen;
@@ -355,12 +368,91 @@ export async function mockUpdateQueueSettings(body: SetQueueSettingsRequest): Pr
   return { queue: getQueueState() };
 }
 
+export async function mockGetCollaboration(): Promise<{ collaboration: CollaborationStateDto }> {
+  return { collaboration: collaborationState };
+}
+
+export async function mockPreviewCollaborationTarget(
+  body: CollaborationTargetPreviewRequest
+): Promise<{ target: { displayName: string } }> {
+  const input = collaborationTargetPreviewRequestSchema.parse(body);
+  if (input.login.toLowerCase() === "missing") throw new Error("Twitch could not find that broadcaster.");
+  return { target: { displayName: formatMockDisplayName(input.login) } };
+}
+
+export async function mockCreateCollaborationInvite(
+  body: CollaborationTargetPreviewRequest
+): Promise<{ collaboration: CollaborationStateDto }> {
+  const input = collaborationTargetPreviewRequestSchema.parse(body);
+  collaborationState = {
+    state: "pending-host-invite",
+    collaboratorDisplayName: formatMockDisplayName(input.login),
+    code: "HOST42",
+    expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
+  };
+  return { collaboration: collaborationState };
+}
+
+export async function mockRevokeCollaborationInvite(): Promise<{ collaboration: CollaborationStateDto }> {
+  collaborationState = { state: "standalone" };
+  return { collaboration: collaborationState };
+}
+
+export async function mockPreviewCollaborationInvite(
+  body: CollaborationCodeRequest
+): Promise<{ invite: { hostDisplayName: string } }> {
+  const input = collaborationCodeRequestSchema.parse(body);
+  if (input.code.toUpperCase() !== "HOST42") throw new Error("The collaboration code is invalid or expired.");
+  return { invite: { hostDisplayName: "DungeonHost" } };
+}
+
+export async function mockJoinCollaboration(
+  body: CollaborationCodeRequest
+): Promise<{ collaboration: CollaborationStateDto }> {
+  await mockPreviewCollaborationInvite(body);
+  collaborationState = {
+    state: "active",
+    role: "collaborator",
+    hostDisplayName: "DungeonHost",
+    collaboratorDisplayName: "Local Tester"
+  };
+  touchQueue();
+  return { collaboration: collaborationState };
+}
+
+export async function mockLeaveCollaboration(): Promise<{ collaboration: CollaborationStateDto }> {
+  if (collaborationState.state !== "active" || collaborationState.role !== "collaborator") {
+    throw new Error("Only the collaborator can leave this shared queue.");
+  }
+  collaborationState = { state: "standalone" };
+  touchQueue();
+  return { collaboration: collaborationState };
+}
+
+export async function mockEndCollaboration(): Promise<{ collaboration: CollaborationStateDto }> {
+  if (collaborationState.state !== "active" || collaborationState.role !== "host") {
+    throw new Error("Only the host can end this shared queue.");
+  }
+  collaborationState = { state: "standalone" };
+  touchQueue();
+  return { collaboration: collaborationState };
+}
+
 function getQueueState(): QueueStateDto {
   const role = getMockRole();
+  const activeCollaboration = collaborationState.state === "active" ? collaborationState : undefined;
+  const canModerate = canModerateRole(role);
   const viewer: QueueStateDto["viewer"] = {
     role,
     isLinked: mockLinked,
-    canModerate: canModerateRole(role)
+    canModerate,
+    permissions: {
+      moderateEntries: canModerate,
+      manageSettings: activeCollaboration ? role === "broadcaster" : canModerate,
+      clearQueue: activeCollaboration
+        ? role === "broadcaster" && activeCollaboration.role === "host"
+        : canModerate
+    }
   };
 
   if (mockLinked) {
@@ -371,14 +463,21 @@ function getQueueState(): QueueStateDto {
     channelId: mockChannelId,
     signupsOpen,
     revision: String(mockRevision),
+    collaboration: activeCollaboration ? {
+      role: activeCollaboration.role,
+      hostDisplayName: activeCollaboration.hostDisplayName,
+      collaboratorDisplayName: activeCollaboration.collaboratorDisplayName
+    } : null,
     dungeonCatalog: localDungeonCatalog,
     viewer,
-    entries: entries.map(({ ownerUserId, ...entry }) => ({
+    entries: entries.map(({ ownerUserId, ...entry }, index) => ({
       ...entry,
+      sourceRole: activeCollaboration ? (index % 2 ? "collaborator" as const : "host" as const) : null,
       isCurrentViewer: mockLinked && ownerUserId === mockViewerUserId && entry.status !== "completed"
     })),
-    offers: offers.map(({ ownerUserId, ...offer }) => ({
+    offers: offers.map(({ ownerUserId, ...offer }, index) => ({
       ...offer,
+      sourceRole: activeCollaboration ? (index % 2 ? "collaborator" as const : "host" as const) : null,
       isCurrentViewer: mockLinked && ownerUserId === mockViewerUserId
     }))
   };
@@ -418,7 +517,8 @@ function createEntry(
     position,
     joinedAt: timestamp,
     updatedAt: timestamp,
-    isCurrentViewer: false
+    isCurrentViewer: false,
+    sourceRole: null
   };
 
   if (raiderIoScore !== undefined) {
@@ -458,7 +558,8 @@ function createOffer(
     keyLevel,
     createdAt: timestamp,
     updatedAt: timestamp,
-    isCurrentViewer: false
+    isCurrentViewer: false,
+    sourceRole: null
   };
 
   if (raiderIoScore !== undefined) {
@@ -491,6 +592,40 @@ function getInitialLinkedState(): boolean {
   }
 
   return new URLSearchParams(window.location.search).get("mockLinked") !== "false";
+}
+
+function getInitialCollaborationState(): CollaborationStateDto {
+  if (typeof window === "undefined") return { state: "standalone" };
+  const state = new URLSearchParams(window.location.search).get("mockCollaboration");
+  if (state === "host" || state === "collaborator") {
+    return {
+      state: "active",
+      role: state,
+      hostDisplayName: "DungeonHost",
+      collaboratorDisplayName: "PartyPartner"
+    };
+  }
+  if (state === "pending") {
+    return {
+      state: "pending-host-invite",
+      collaboratorDisplayName: "PartyPartner",
+      code: "HOST42",
+      expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
+    };
+  }
+  return { state: "standalone" };
+}
+
+function requireMockRevision(revision: string | undefined): void {
+  if (collaborationState.state === "active" && revision !== String(mockRevision)) {
+    const error = new Error("The shared queue changed. Refresh and try again.") as Error & { code: string };
+    error.code = "stale_queue_revision";
+    throw error;
+  }
+}
+
+function formatMockDisplayName(login: string): string {
+  return login.slice(0, 1).toUpperCase() + login.slice(1);
 }
 
 function findEntry(entryId: string): MockQueueEntry {
