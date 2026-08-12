@@ -5,20 +5,20 @@ import {
 } from "@dungeon-list/shared";
 import { ApiError } from "./errors.js";
 
-// Midnight Season 1 Mythic+ rotation published by Blizzard on 2026-03-18.
+// Midnight Season 2 Mythic+ rotation.
 // Update this catalog and deploy only the EBS when the seasonal rotation changes.
 export const currentDungeonCatalog: DungeonCatalogDto = dungeonCatalogSchema.parse({
-  seasonId: "midnight-season-1",
-  seasonName: "Midnight Season 1",
+  seasonId: "midnight-season-2",
+  seasonName: "Midnight Season 2",
   dungeons: [
-    { name: "Magisters' Terrace", shortName: "MT" },
-    { name: "Maisara Caverns", shortName: "Cavern" },
-    { name: "Nexus-Point Xenas", shortName: "Xenas" },
-    { name: "Windrunner Spire", shortName: "Spire" },
-    { name: "Algeth'ar Academy", shortName: "AA" },
-    { name: "Pit of Saron", shortName: "Pit" },
-    { name: "Seat of the Triumvirate", shortName: "Seat" },
-    { name: "Skyreach", shortName: "Sky" }
+    { name: "Altar of Fangs", shortName: "ALTAR" },
+    { name: "Den of Nalorakk", shortName: "DEN" },
+    { name: "Murder Row", shortName: "MURDER" },
+    { name: "The Blinding Vale", shortName: "VALE" },
+    { name: "Voidscar Arena", shortName: "ARENA" },
+    { name: "King's Rest", shortName: "REST" },
+    { name: "Temple of Sethraliss", shortName: "TEMPLE" },
+    { name: "Ruby Life Pools", shortName: "POOLS" }
   ]
 });
 

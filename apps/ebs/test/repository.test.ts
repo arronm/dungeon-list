@@ -31,8 +31,8 @@ describe("QueueRepository completed history", () => {
 
     expect(joinedQueue.entries).toHaveLength(2);
     expect(joinedQueue.dungeonCatalog).toMatchObject({
-      seasonId: "midnight-season-1",
-      seasonName: "Midnight Season 1"
+      seasonId: "midnight-season-2",
+      seasonName: "Midnight Season 2"
     });
     expect(joinedQueue.viewer).not.toHaveProperty("userId");
     expect(joinedQueue.viewer).not.toHaveProperty("opaqueUserId");
